@@ -90,6 +90,8 @@ jobs:
           ./tools/fetchdos.sh        # CWSDPMI, the DPMI host
           ./tools/fetchpktdrv.sh     # PCIPKT.COM for v86's RTL8029
           ./tools/fetchatmos.sh      # the free DOS software in the share
+          ./tools/fetchsynth.sh      # the SoundFont synth the page bundles
+          ./tools/fetchsf2.sh        # and the SoundFont it plays through
 
       - name: Build
         run: |

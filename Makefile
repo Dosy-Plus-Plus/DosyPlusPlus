@@ -640,8 +640,14 @@ warez: tthof atmos
 
 # What gets published to GitHub Pages: the page, the engine, the images,
 # and the two scripts that give the browser a network. See docs/PAGES.md.
-pages: images warez
+pages: images warez web/vendor/synth/spessasynth_core.js
 	./tools/mkpages.sh
+
+# The vendored synthesiser, as a file rather than a phony target: `make
+# pages` has to be able to depend on it. (`make synth` above is the
+# spelling to type.)
+web/vendor/synth/spessasynth_core.js:
+	./tools/fetchsynth.sh
 
 test-pages: pages
 	./test/web/run-pages-test.sh
