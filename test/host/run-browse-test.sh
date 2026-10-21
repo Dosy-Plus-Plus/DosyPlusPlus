@@ -112,14 +112,32 @@ fi
 #   DOWN   past "apps" to MAZERUN2.ZIP
 #   SPACE  queue it
 #
-# The sleeps are generous: this is driving a UI through a pipe, and a tight
-# sequence would be testing the timing rather than the feature.
+# Each key waits for the listing it acts on to have arrived, rather than
+# for a number of seconds to have passed. This used to be four sleeps
+# chosen to be generous on this machine; on a slower, busier one -- a
+# two-core CI runner -- the first ENTER landed before the root listing did,
+# nothing descended, and the failure read as "navigation did not work".
+# --peer-trace puts the wire in the log, so the arrival of each list is an
+# observable event and the rig can wait for the real thing.
+await_line() {
+    local log="$1" pat="$2" limit="${3:-12}" n=0
+    while [ "$n" -lt $((limit * 10)) ]; do
+        grep -qaF "$pat" "$log" 2>/dev/null && return 0
+        sleep 0.1; n=$((n + 1))
+    done
+    echo "TIMED OUT after ${limit}s waiting in $(basename "$log"): $pat" >&2
+    return 1
+}
+
 echo "fetching the list and walking it..."
 (
-    sleep 8;  printf '\r'
-    sleep 3;  printf '\r'
-    sleep 3;  printf '\033[B'
-    sleep 2;  printf ' '
+    # ENTER into "up", once the root listing is on screen
+    await_line "$RUN/dn.log" "CSND list / 0"          || true; sleep 0.3; printf '\r'
+    # ENTER into "warez" (directories sort first)
+    await_line "$RUN/dn.log" "CSND list /up/ 0"       || true; sleep 0.3; printf '\r'
+    # DOWN past "apps" to MAZERUN2.ZIP, then SPACE to queue it
+    await_line "$RUN/dn.log" "CSND list /up/warez/ 0" || true; sleep 0.3; printf '\033[B'
+    sleep 0.5; printf ' '
     sleep 20
 ) | ( cd "$RUN/down" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn.txt" --null-display --door 8 --peer-trace \
@@ -131,7 +149,13 @@ sed -n '2,16p' "$RUN/dn.txt" 2>/dev/null || echo "(no screenshot)"
 echo "-----------------------"
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 # ---- pass 1 asked for partial lists, and got them
 grep -q "CGET list /" "$RUN/dn.log" ||
@@ -209,8 +233,12 @@ for _ in $(seq 60); do
 done
 
 (
-    sleep 10; printf '\r'
-    sleep 3;  printf '\r'
+    # No listing arrives here: this sharer refuses partial lists, so the
+    # client falls back to fetching files.xml.bz2 whole. That transfer is
+    # the event to wait for -- waiting for a CSND list would time out by
+    # design and put the keys in late.
+    await_line "$RUN/dn2.log" "CSND file files.xml.bz2" || true; sleep 0.5; printf '\r'
+    sleep 0.5; printf '\r'
     sleep 12
 ) | ( cd "$RUN/down2" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn2.txt" --null-display --door 8 --peer-trace \
@@ -250,5 +278,10 @@ fi
 
 echo "--- downloader output ---" >&2
 tail -15 "$RUN/dn.log" >&2
+
+# Last, because the sweep shows the tail of this log and nothing else: a
+# run that said only "BROWSE FAILED" cost two people a guessing game about
+# which of twenty checks it was.
+echo "--- what failed ---$FAILURES" >&2
 echo "BROWSE FAILED" >&2
 exit 1
