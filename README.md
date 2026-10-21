@@ -407,10 +407,6 @@ assumed.
 - **Measure, do not assume.** Every number in this file came out of a rig
   in the repo, and the rigs are written to fail rather than to pass.
 
-See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for the design and
-the reasoning, and [`TODO.md`](TODO.md) for what is left, including what is
-known to be wrong.
-
 ## Contributing
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) covers the build, the two C dialects
