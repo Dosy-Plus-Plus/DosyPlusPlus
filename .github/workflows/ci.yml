@@ -1,0 +1,83 @@
+# The host tier, on every commit.
+#
+# This is tools/sweep.sh's cheapest tier: everything that needs nothing but
+# a C compiler and Python 3. Fifteen gates -- the unit tests, the transfer,
+# resume, segment, browse, setup, hublist, favourites, music, command and
+# attic rigs, the randomised TTH cross-check against rhash, and the
+# benchmarks. No Docker, no DOSBox-X, no emulator: those tiers are minutes
+# each and belong to a sweep somebody runs deliberately.
+#
+# Same entry point as a laptop (`tools/sweep.sh host`), so a red run here
+# reproduces with one command and the tier list does not drift between CI
+# and the script that defines it.
+#
+# Nine minutes from a fresh clone, measured -- in a clone rather than a
+# working tree on purpose, because that is the only way to see what a
+# checkout does not have. It found one: art/ holds nothing but generated
+# modules, so it is absent from a clone, and four of these fifteen gates
+# could not write into it.
+name: host tier
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A branch only needs its newest commit tested; a second push cancels the
+# first. Pull requests get their own group so a push to a branch does not
+# cancel the PR's run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # rhash is the independent TTH implementation make test-oracle checks
+      # ours against, and the transfer rigs verify downloads with it. Its
+      # absence would not fail those rigs -- they skip what they cannot
+      # check -- which is exactly why it is installed rather than hoped for.
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rhash unzip zip curl
+          rhash --version
+          cc --version | head -1
+          python3 --version
+
+      # What the gates download: libbzip2's sources (an ADC file list is
+      # bzip2, so browsing needs them) and the free DOS packages the attic
+      # rig serves. Both fetchers are sha256-pinned, so a cache hit is the
+      # same bytes a fresh fetch would be.
+      - name: Cache downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache
+            build/atmos
+            third_party/bzip2
+          key: host-fetch-${{ hashFiles('tools/fetchatmos.sh', 'tools/fetchbzip2.sh') }}
+
+      - name: Sweep the host tier
+        env:
+          SWEEP_KEEP: "1"          # keep passing logs too, for the artifact
+        run: ./tools/sweep.sh host
+
+      # The logs of every gate, pass or fail. A failure here is on somebody
+      # else's machine, so the thing that makes it debuggable is the output
+      # of the rig that failed, not the four lines the sweep prints.
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sweep-logs
+          path: build/sweep/
+          if-no-files-found: warn
+          retention-days: 14

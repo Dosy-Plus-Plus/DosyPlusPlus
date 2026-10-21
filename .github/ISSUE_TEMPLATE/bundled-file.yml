@@ -1,0 +1,36 @@
+name: A bundled file should not be here
+description: Report software in the demo that should not be redistributed
+title: "Bundled file: "
+labels: [licensing]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You can also write to the address in
+        [SECURITY.md](../../blob/main/SECURITY.md) instead of opening this
+        publicly. Either way: the file comes out first and gets discussed
+        afterwards. You do not need to be the rightsholder to report it.
+
+        What is bundled and why it is believed to be redistributable is set
+        out in [docs/LICENSING.md](../../blob/main/docs/LICENSING.md), and
+        every package is listed in `CREDITS.txt` beside the demo page with
+        the licence its own authors recorded in it.
+
+  - type: input
+    id: file
+    attributes:
+      label: Which file
+      description: The filename, and where you saw it.
+      placeholder: attic/warez/games/SOMETHING.ZIP, in the demo page's share
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it should not be here
+      description: >
+        What you believe the terms are, and where that is stated, if you know.
+        A plain "I think this is a commercial game" is enough to act on.
+    validations:
+      required: true

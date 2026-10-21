@@ -1,0 +1,25 @@
+ DOSy++  •  DOSyPP Stub Hub                                      8 NODES ONLINE 
+┌─┤ TRANSFERS ├────────────────────────────────────────────────────────────────┐
+│   FILE                            SIZE / RATE  STATE                 PASSIVE │
+│──────────────────────────────────────────────────────────────────────────────│
+│   FREEDOOM.ZIP                          26.3M  COMPLETE                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                           26.3M in / 0B out  2 done 0 failed │
+└──────────────────────────────────────────────────────────────────────────────┘
+ NODE AAAO  •  Warlord  •  F1 HELP  •  PGUP/PGDN SCROLL                         
+ 1-MSGS 2-WHO 3-FILES 4-XFER 5-SHARE 6-MOTD 7-INFO 8-BROWSE 9-SETUP 0-HUBS G-BYE

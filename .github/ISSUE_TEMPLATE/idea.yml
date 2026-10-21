@@ -1,0 +1,26 @@
+name: Idea or feature
+description: Something it should do, or do differently
+labels: [idea]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: >
+        What you are trying to do that it does not let you do. This matters
+        more than the feature itself -- there is often a simpler answer.
+
+  - type: input
+    id: era
+    attributes:
+      label: Would it have existed in 1994?
+      description: >
+        Not a requirement, just useful to know. The interface is period and
+        the protocol is not, so both answers are fine.

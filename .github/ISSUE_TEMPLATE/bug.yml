@@ -1,0 +1,59 @@
+name: Bug report
+description: Something does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a memory-safety bug reachable from hub or peer traffic,
+        please write to the address in SECURITY.md instead of opening this.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it runs
+      options:
+        - Real DOS hardware
+        - DOSBox-X
+        - The browser demo (v86)
+        - The native build (make host)
+        - Somewhere else
+    validations:
+      required: true
+
+  - type: input
+    id: machine
+    attributes:
+      label: The machine
+      description: >
+        For real hardware: the CPU, how much RAM, the network card and which
+        packet driver. For DOSBox-X or v86: the version or the browser. For
+        the native build: the OS.
+      placeholder: 486DX2/66, 16MB, 3C509B with 3C5X9PD, MS-DOS 6.22
+    validations:
+      required: true
+
+  - type: input
+    id: hub
+    attributes:
+      label: The hub
+      description: >
+        Which hub software, if you know, and whether it was adc:// or adcs://.
+        "The one in the demo page" is a fine answer.
+
+  - type: textarea
+    id: output
+    attributes:
+      label: What it said
+      description: >
+        Anything on screen, and DOSYPP.TTL if the client wrote one. A photo of
+        a real screen is perfectly good.
+      render: text

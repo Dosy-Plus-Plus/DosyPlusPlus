@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOSy++</title>
+<meta name="description" content="An ADC (Direct Connect) client for MS-DOS, running as the real DJGPP binary on an emulated 486 in your browser.">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #15151a;
+    --edge: #2a2a33;
+    --fg: #c8c8d0;
+    --dim: #6a6a78;
+    --amber: #ffb000;
+    --green: #33ff66;
+    --red: #ff5555;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+  body { padding: 16px; display: flex; flex-direction: column; gap: 12px;
+         align-items: center; }
+  header, #bezel, .bar, #status, details, footer, .panel {
+    width: 100%; max-width: 880px;
+  }
+  h1 { font-size: 14px; letter-spacing: .18em; text-transform: uppercase;
+       color: var(--amber); margin: 0 0 2px; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 11px; line-height: 1.5; }
+
+  /* The CRT bezel. Deliberately understated -- the 1994 styling belongs
+     inside the emulated screen, not around it. */
+  #bezel {
+    background: #000; border: 1px solid var(--edge); border-radius: 6px;
+    padding: 10px; position: relative;
+  }
+  /* v86 sizes its own canvas, inline and in pixels, and doubles small
+     modes -- so CSS cannot scale it and a `width: 100%` is ignored. That
+     is why Doom's 320x200 arrived at its own size in the corner of a much
+     wider bezel, clipped. The page measures what v86 produced and scales
+     the whole container instead (web/fitscreen.mjs), which works for the
+     canvas and the text element alike. */
+  #screenwrap { position: relative; width: 100%; overflow: hidden; }
+  #screen_container { transform-origin: top left; display: inline-block; }
+  #screen_container canvas {
+    display: block;
+    image-rendering: pixelated; background: #000;
+  }
+  #screen_container > div {         /* v86's text-mode output */
+    white-space: pre; font: 14px/1.08 ui-monospace, Menlo, monospace;
+    color: #c8c8d0;
+  }
+  /* Nothing the guest does should push the page about. */
+  #bezel { overflow: hidden; }
+  #scan {
+    position: absolute; inset: 0; pointer-events: none; border-radius: 3px;
+    background: repeating-linear-gradient(
+      to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.16) 2px 3px);
+    mix-blend-mode: multiply; opacity: 0;
+  }
+  #bezel.crt #scan { opacity: 1; }
+
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, select, input {
+    background: var(--panel); color: var(--fg);
+    border: 1px solid var(--edge); border-radius: 3px;
+    padding: 6px 10px; font: inherit; font-size: 12px;
+  }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+  button:disabled { opacity: .4; cursor: default; }
+  label { color: var(--dim); font-size: 11px; }
+  input[type=range] { padding: 0; width: 90px; }
+
+  .panel { border: 1px solid var(--edge); border-radius: 4px;
+           background: var(--panel); padding: 10px 12px; }
+  .panel h2 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+              color: var(--amber); margin: 0 0 8px; font-weight: 600; }
+  .panel p { margin: 0 0 8px; color: var(--dim); line-height: 1.6; }
+  .panel ol { margin: 0; padding-left: 20px; color: var(--dim); line-height: 1.9; }
+  .panel li b { color: var(--fg); font-weight: 600; }
+  pre.cmd {
+    margin: 6px 0; padding: 8px 10px; overflow-x: auto;
+    background: #0d0d10; border: 1px solid var(--edge); border-radius: 3px;
+    color: var(--green); font-size: 11.5px; line-height: 1.6;
+  }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tiny { font-size: 11px; color: var(--dim); }
+
+  #status { min-height: 2.6em; color: var(--dim); font-size: 11px;
+            line-height: 1.6; }
+  #status .ok  { color: var(--green); }
+  #status .err { color: var(--red); }
+  #status .warn { color: var(--amber); }
+  #status code { color: var(--fg); }
+
+  details { color: var(--dim); font-size: 11px; line-height: 1.7; }
+  summary { cursor: pointer; color: var(--fg); margin-bottom: 6px; }
+  details code, .panel code { color: var(--amber); }
+  a { color: var(--amber); }
+  footer { color: var(--dim); font-size: 10.5px; padding-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DOSy++ &mdash; browser host</h1>
+  <div class="sub">
+    An ADC (Direct Connect) client for MS-DOS. This is the real DJGPP
+    binary, on an emulated 486, with a packet driver and Watt-32 under it
+    &mdash; not a reimplementation in JavaScript.
+  </div>
+</header>
+
+<div id="bezel" class="crt">
+  <div id="screenwrap">
+    <div id="screen_container"><canvas></canvas><div></div></div>
+  </div>
+  <div id="scan"></div>
+</div>
+
+<div class="bar">
+  <button id="start">Boot</button>
+  <button id="pause" disabled>Pause</button>
+  <button id="reset" disabled>Reset</button>
+  <button id="save" disabled>Save session</button>
+  <button id="forget" disabled>Forget</button>
+  <label><input type="checkbox" id="crt" checked> scanlines</label>
+  <label>volume <input type="range" id="vol" min="0" max="100" value="70"></label>
+  <span id="sound" class="tiny"></span>
+</div>
+
+<div id="status">Idle.</div>
+
+<div class="panel">
+  <h2>Network</h2>
+  <p>
+    A browser tab cannot open a TCP socket, and WebAssembly does not change
+    that &mdash; it reaches the network through the same JavaScript APIs,
+    and none of them do TCP. So there are two ways to give the DOS guest a
+    network, and the first needs nothing at all.
+  </p>
+  <div class="row">
+    <label><input type="radio" name="net" id="netinpage" checked>
+      <b>In this tab</b> &mdash; hub and all. No setup.</label>
+  </div>
+  <div class="row">
+    <label><input type="radio" name="net" id="netrelay">
+      Through a relay, to a hub somewhere</label>
+    <input id="relay" size="26" value="wisp://127.0.0.1:8086/" disabled>
+    <button id="probe" disabled>Test</button>
+  </div>
+  <p class="tiny" id="relayhint"></p>
+  <p class="tiny">
+    <b>In this tab</b> runs the other end of the wire in JavaScript: the
+    Wisp stream the guest opens is handed to an ADC hub and a serving peer
+    a few hundred lines away (<code>wisp.mjs</code>,
+    <code>adchub.mjs</code>). Real protocol, real files, real hashes
+    &mdash; and nothing leaves your browser, so no hub on the internet is
+    involved. It is your own hub: nobody else is in it.
+  </p>
+  <div class="row">
+    <label><input type="checkbox" id="stream"> stream the disk image</label>
+    <span id="netstat" class="tiny"></span>
+  </div>
+  <details>
+    <summary>Running a hub of your own instead</summary>
+    <p>
+      Pick <em>through a relay</em> and point it at
+      <code>wisprelay.py</code> on your machine, which can reach whatever
+      hub you tell it to &mdash; including an <code>adcs://</code> one,
+      since it terminates the TLS the DOS binary does not have. That is
+      also how two people end up in the same hub, which the in-tab one
+      cannot do.
+    </p>
+    <pre class="cmd" id="oneliner">curl -fsSL ./relay/demo.sh | sh</pre>
+    <div class="row">
+      <button id="copycmd">Copy</button>
+      <a id="showsteps" href="#steps">what that script does</a>
+    </div>
+  </details>
+</div>
+
+<div class="panel">
+  <h2>Game MIDI</h2>
+  <p>
+    A DOS game that offers you "Roland MPU-401" writes MIDI notes to port
+    330h and expects a synthesiser on the other end. v86 answers the
+    game's probe and then throws every note away &mdash; so the game
+    detects a Roland and plays silence. This page takes the notes off the
+    port itself and plays them.
+  </p>
+  <div class="row">
+    <button id="midion">Play it here (40MB SoundFont)</button>
+    <button id="midiout">Send it to my MIDI device&hellip;</button>
+    <select id="midiports" hidden></select>
+    <button id="sfpick">Use my own SoundFont&hellip;</button>
+    <input type="file" id="sffile" accept=".sf2,.sf3,.dls" hidden>
+    <span id="midistat" class="tiny">off</span>
+  </div>
+  <p class="tiny" id="midicount"></p>
+  <p class="tiny">
+    A MIDI device is the better sound and costs no download: the notes
+    leave the browser and go to whatever you have &mdash; a Roland module,
+    a keyboard, a software synth, Windows' own GS Wavetable. Needs Web
+    MIDI, which Safari does not have.
+  </p>
+  <p class="tiny">
+    "Use my own SoundFont" takes any <code>.sf2</code>, <code>.sf3</code>
+    or <code>.dls</code> file from your disk &mdash; an SC-55 or MT-32 set
+    you already own works, and skips the 40MB download. The file is read in
+    the browser and never leaves your machine. Nothing of that kind is
+    bundled here: those sets are sample recordings of Roland hardware and
+    are not ours to ship.
+  </p>
+</div>
+
+<div class="panel">
+  <h2>The demo</h2>
+  <p>
+    Download a game over Direct Connect, on DOS, in a browser tab, then
+    unzip it and play it. The buttons type for you &mdash; or click into
+    the screen and type it yourself.
+  </p>
+  <ol>
+    <li><b>Boot.</b> FreeDOS comes up, loads the RTL8029 packet driver and
+        starts DOSy++ against the hub. It asks what to call you &mdash;
+        type a handle, or press &crarr; for <code>WebNode</code>. The tune
+        is a ProTracker module through the emulated Sound Blaster.
+        <span class="row" style="display:inline-flex">
+          <button class="keys" data-keys="\n" disabled>&crarr; (keep WebNode)</button>
+        </span></li>
+
+    <li><b>Find a game.</b> Door 3 is the file areas. <code>BOOM</code> is
+        Doom &mdash; the GPL engine with a free WAD, 7.8MB &mdash; and its
+        music plays if you pressed <em>Play it here</em> above.
+        <code>BLKDROP</code> is 109KB if you would rather not wait.
+        <span class="row" style="display:inline-flex">
+          <button class="keys" data-keys="3" disabled>press 3</button>
+          <button class="keys" data-keys="BOOM\n" disabled>type BOOM &crarr;</button>
+        </span></li>
+
+    <li><b>Queue it.</b> &crarr; on a result queues it; door 4 watches it
+        arrive and verify against the hash the hub advertised.
+        <span class="row" style="display:inline-flex">
+          <button class="keys" data-keys="\n" disabled>&crarr;</button>
+          <button class="keys" data-keys="4" disabled>press 4</button>
+        </span></li>
+
+    <li><b>Leave the client.</b> It drops you at a DOS prompt, and what
+        you downloaded is sitting in <code>C:\</code> as
+        <code>BOOM.ZIP</code>.
+        <span class="row" style="display:inline-flex">
+          <button class="keys" data-keys="/quit\n" disabled>/quit</button>
+          <button class="keys" data-keys="DIR *.ZIP\n" disabled>DIR *.ZIP</button>
+        </span></li>
+
+    <li><b>Unzip it and play.</b> <code>PLAY</code> does both:
+        <code>UNZIP</code> it, set its music to the MPU-401 this page
+        listens to, and run what comes out. Games that want a mouse have
+        one &mdash; the boot loads <code>CTMOUSE</code>, and v86's mouse
+        is yours once you click into the screen.
+        <span class="row" style="display:inline-flex">
+          <button class="keys" data-keys="PLAY BOOM\n" disabled>PLAY BOOM</button>
+          <button class="keys" data-keys="PLAY BLKDROP\n" disabled>PLAY BLKDROP</button>
+        </span></li>
+  </ol>
+
+  <details>
+    <summary>Unzipping it by hand, and what PLAY is doing for you</summary>
+    <p>
+      <code>UNZIP.EXE</code> is on <code>C:\</code> &mdash; it comes from
+      the FreeDOS <em>unzip</em> package, which the demo's own share also
+      carries. Doom unpacks to about 19MB, which a 486 in a browser tab
+      does in a few seconds.
+    </p>
+    <pre class="cmd">DIR *.ZIP                      what you downloaded
+UNZIP -o -q BOOM.ZIP           unpack it (-o overwrites, -q is quiet)
+COPY BOOMMIDI.CFG GAMES\BOOM\BOOM.CFG    music through the MPU-401
+CD GAMES\BOOM
+BOOM                           play it
+CD \                           and back out afterwards</pre>
+    <p>
+      That <code>COPY</code> is the line that matters for sound. Boom asks
+      Allegro to autodetect its music device, and inside v86 autodetect
+      finds the Sound Blaster and picks an FM chip the emulator does not
+      implement &mdash; so Doom runs perfectly and plays silence.
+      <code>BOOMMIDI.CFG</code> is the package's own config with
+      <code>music_card = 6</code>, which is the MPU-401, which is the port
+      this page is listening to. <code>PLAY</code> copies it for you.
+    </p>
+    <p>
+      To get back to the client afterwards:
+      <code>DOSYPP 10.77.0.1</code> &mdash; the address means "the hub",
+      whether that is the one in this tab or one a relay points at.
+      <span class="row" style="display:inline-flex">
+        <button class="keys" data-keys="DOSYPP 10.77.0.1\n" disabled>DOSYPP 10.77.0.1</button>
+      </span>
+    </p>
+  </details>
+</div>
+
+<details id="steps">
+  <summary>What the script does, if you would rather not pipe curl to bash</summary>
+  <pre class="cmd" id="steplines"></pre>
+  <p>
+    The first two are the relay and the hub. The third is the share the hub
+    serves: free DOS software from the FreeDOS repositories, with its
+    hashes precomputed &mdash; the client verifies every download against
+    them, and Python has no Tiger to compute them with.
+  </p>
+  <p>
+    <code>--map</code> is the trick that makes this work without DNS: v86
+    hands the relay the dotted quad the guest dialled, as a hostname, so
+    <code>10.77.0.1</code> means "the hub" and <code>10.77.0.2</code> means
+    "the node with the files". The DOS side never learns a real address.
+  </p>
+</details>
+
+<details>
+  <summary>How this works, and what it cannot do</summary>
+  <p>
+    v86 emulates a PC with an <code>ne2k</code> NIC (RTL8029). The guest
+    loads an ordinary packet driver, Watt-32 sees an ordinary NIC, and
+    <strong>DOSy++ runs unmodified</strong> &mdash; the same binary as real
+    hardware. Guest address <code>192.168.86.100</code>, gateway
+    <code>192.168.86.1</code>, both static: v86 answers DHCP in
+    JavaScript but Watt-32 does not take its offer.
+  </p>
+  <p>
+    <b>Incoming connections.</b> Wisp carries outbound streams only, so the
+    guest is passive: it cannot be dialled and says so in its INF. A peer
+    that wants a file from it sends a CTM and the guest does the dialling.
+    That is also why downloading works at all.
+  </p>
+  <p>
+    <b>ADCS.</b> There is no TLS in the DOS binary. The relay is the TLS
+    endpoint: <code>--map 10.77.0.1=hub.example.net:2780:tls</code>. The
+    relay therefore sees that traffic in the clear, which is an argument
+    for running it yourself and not an argument for hosting one here.
+  </p>
+  <p>
+    <b>Sound.</b> PCM through the emulated Sound Blaster's DMA, which is
+    our own mixer feeding it. v86 does not implement the DMA controller's
+    count register, so the mixer times the ring from the clock instead and
+    says so in door 7. There is no OPL either, so FM music is silent here
+    whatever a game reports &mdash; on real hardware the same binary
+    drives a real card.
+  </p>
+  <p>
+    <b>Game MIDI.</b> v86's MPU-401 answers a game's probe at 330h and
+    discards every note, which is worse than having none: the game picks
+    Roland and goes quiet. So this page wraps that I/O port, reassembles
+    the stream (running status, sysex and all) and plays it through a
+    SoundFont synthesiser on the audio thread. The byte stream and the
+    synthesis are both checked headlessly by <code>make
+    test-v86-midi</code>, which renders what you would hear and measures
+    it; what no rig here can check is the last hop to your speakers.
+  </p>
+  <p>
+    <b>Persistence.</b> Save session writes the whole machine state to
+    IndexedDB, so the identity, the hash cache and the favourites survive
+    a reload. It is your browser's storage: nothing leaves the tab.
+  </p>
+  <p>
+    <b>What this page is not.</b> It is not a hub, not a relay and not a
+    tracker. It serves static files; everything else runs on your machine.
+  </p>
+</details>
+
+<div class="panel">
+  <h2>What is in here</h2>
+  <p>
+    Every program in this demo is <b>free software</b>, redistributable
+    under its own licence, fetched from the FreeDOS&nbsp;1.3 repositories
+    and pinned by hash. None of it is shareware, abandonware or a
+    commercial game: the Doom you can download is the GPL
+    <em>Boom</em> engine with <b>Freedoom</b>'s BSD-licensed game data,
+    not id Software's.
+  </p>
+  <p>
+    The 1994 styling is a costume. Nothing here is cracked, patched,
+    ripped or mirrored from anywhere it should not have been, and the
+    file area's invented names are invented precisely so that no real
+    release is implied.
+  </p>
+  <p class="tiny">
+    DOSy++ itself is <a href="LICENSE.txt">MIT licensed</a>.
+    <a href="CREDITS.txt">CREDITS.txt</a> lists every bundled package
+    with the licence its own authors recorded in it &mdash; generated at
+    build time from the packages, not written from memory. If you believe
+    something here should not be, write to
+    <a href="mailto:dosy@fastmail.com">dosy@fastmail.com</a> saying which file and
+    why, and it comes out first and gets discussed afterwards.
+  </p>
+</div>
+
+<footer id="build"></footer>
+
+<script type="module">
+import { V86 } from "./vendor/libv86.mjs";
+import { toWisp, toSocket, blockedAsMixed } from "./relayurl.mjs";
+import { listen } from "./midi.mjs";
+import { WebMidiOut, available as webmidiAvailable } from "./webmidi.mjs";
+import { WispServer, installInPageSocket } from "./wisp.mjs";
+import { AdcHub, parseShare } from "./adchub.mjs";
+import { chooseDisk, diskManifest } from "./disk.mjs";
+import { fitScale, fitBox } from "./fitscreen.mjs";
+
+const $ = (id) => document.getElementById(id);
+const statusEl = $("status");
+
+function say(html, cls) {
+  statusEl.innerHTML = cls ? `<span class="${cls}">${html}</span>` : html;
+}
+function add(html, cls) {
+  statusEl.innerHTML += "<br>" + (cls ? `<span class="${cls}">${html}</span>` : html);
+}
+
+$("crt").addEventListener("change", (e) =>
+  $("bezel").classList.toggle("crt", e.target.checked));
+
+let emulator = null;
+
+/* ---------------------------------------------------------- the screen
+ *
+ * Whatever video mode the guest picks, it has to fit the bezel. v86 sets
+ * the canvas size inline, so this measures the result and scales the
+ * container around it rather than trying to overrule it. Called on the
+ * mode changes v86 announces, on a resize, and on a slow timer -- because
+ * a mode change that does not announce itself still has to look right. */
+function fitScreen() {
+  const wrap = $("screenwrap");
+  const box = $("screen_container");
+
+  if (!wrap || !box)
+    return;
+
+  /* Measure unscaled, or the measurement includes the last scale. */
+  box.style.transform = "none";
+  const natW = box.offsetWidth;
+  const natH = box.offsetHeight;
+
+  if (!natW || !natH)
+    return;
+
+  const scale = fitScale(natW, natH, wrap.clientWidth,
+                         Math.max(240, window.innerHeight * 0.62));
+  const fitted = fitBox(natW, natH, scale);
+
+  box.style.transform = `scale(${scale})`;
+  /* The wrapper keeps the space, so a mode change does not shuffle the
+     page underneath it. */
+  wrap.style.height = fitted.height + "px";
+}
+
+window.addEventListener("resize", fitScreen);
+setInterval(fitScreen, 1000);
+
+/* ------------------------------------------------------------- the setup
+ *
+ * Served from a static host, the page knows nothing about the visitor's
+ * machine, so the two things it can usefully do are pick sensible defaults
+ * and be exact about what has to exist.
+ *
+ * Streaming the disk is the default when this page is not local: the image
+ * is 64MB and v86 reads it in blocks over HTTP Range requests, so a boot
+ * costs a few hundred kilobytes instead of the whole thing. Locally the
+ * image is already on disk, where loading it outright is faster. */
+const local = ["localhost", "127.0.0.1", "[::1]", ""].includes(
+  location.hostname);
+$("stream").checked = !local;
+
+/* ------------------------------------------------------ the hub in the tab
+ *
+ * There is no TCP in a browser, so rather than ask for a relay the page can
+ * be the other end of the wire: web/wisp.mjs answers the WebSocket v86
+ * opens, and web/adchub.mjs answers as the hub and as the node with the
+ * files. The share is the one published beside this page, and a file is
+ * fetched only when the DOS client asks for it.
+ *
+ * Everything here is the code test/v86/run-inpage-test.sh runs headlessly,
+ * which is how the download is known to work at all. */
+let inPage = null;
+
+function netMode() {
+  return $("netrelay").checked ? "relay" : "inpage";
+}
+
+function netUi() {
+  const relay = netMode() === "relay";
+  $("relay").disabled = !relay;
+  $("probe").disabled = !relay;
+  relayHint();
+}
+$("netinpage").addEventListener("change", netUi);
+$("netrelay").addEventListener("change", netUi);
+
+async function startInPageHub() {
+  const r = await fetch("attic/SHARE.TXT");
+  if (!r.ok)
+    throw new Error("attic/SHARE.TXT is not published beside this page, so "
+                    + "there is nothing to share (HTTP " + r.status + ")");
+
+  const { files, problems } = parseShare(await r.text());
+  for (const p of problems)
+    add(`share: ${p}`, "warn");
+  if (!files.length)
+    throw new Error("the published share is empty");
+
+  const hub = new AdcHub({
+    share: files,
+    /* By range, so a 7.8MB game costs 7.8MB and the twelve files nobody
+       asked for cost nothing. A host that ignores Range answers 200 with
+       the whole file, which still works -- it just fetched more than it
+       needed, so the slice happens here. */
+    fetchFile: async (file, start, count) => {
+      const end = start + count - 1;
+      const res = await fetch("attic/" + file.name,
+                              { headers: { Range: `bytes=${start}-${end}` } });
+      if (!res.ok)
+        throw new Error(`${file.name}: HTTP ${res.status}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      return res.status === 206 ? bytes : bytes.subarray(start, start + count);
+    },
+  });
+
+  hub.onEvent = (kind, detail) => {
+    if (kind === "login")
+      add(`The hub in this tab has ${detail.nick} logged in.`, "ok");
+    else if (kind === "search")
+      add(`Search for "${detail.terms}": ${detail.hits} file(s).`);
+    else if (kind === "upload")
+      add(`Sending ${detail.name} (${Math.round(detail.size / 1024)}KB) `
+          + "from this tab.");
+    netCounts();
+  };
+
+  const server = new WispServer(hub.listeners());
+  server.onLog = (m) => { lastWisp = m; };
+  installInPageSocket(server);
+
+  inPage = { hub, server };
+  const mb = (files.reduce((n, f) => n + f.size, 0) / 1048576).toFixed(1);
+  add(`Hub running in this tab: ${files.length} files, ${mb}MB, nothing `
+      + "on the network.", "ok");
+  setInterval(netCounts, 2000);
+  return inPage;
+}
+
+let lastWisp = "";
+
+function netCounts() {
+  if (!inPage) return;
+  const { hub, server } = inPage;
+  $("netstat").textContent =
+    `in-tab hub: ${hub.sent} lines, `
+    + `${(hub.served / 1024).toFixed(0)}KB served, `
+    + `${server.streams.size} open connection(s)`
+    + (lastWisp ? ` \u2014 ${lastWisp}` : "");
+}
+
+/* ?relay=... so a link can carry somebody's own relay, and ?stream=0 for
+   anyone who would rather have the whole image up front. Read, not
+   obeyed: the value lands in the box where it can be seen and changed. */
+{
+  const q = new URLSearchParams(location.search);
+  if (q.has("relay")) $("relay").value = q.get("relay");
+  if (q.has("stream")) $("stream").checked = q.get("stream") !== "0";
+}
+
+const SETUP = [
+  "curl -fsSLO <base>relay/wisprelay.py",
+  "curl -fsSLO <base>relay/stubhub.py",
+  "curl -fsSL  <base>relay/attic.zip -o attic.zip && unzip -q attic.zip",
+  "",
+  "python3 stubhub.py --port 1511 --motd-ansi \\",
+  "        --serve attic --serve-ip 10.77.0.2 --serve-port 1512 &",
+  "",
+  "python3 wisprelay.py --port 8086 \\",
+  "        --map 10.77.0.1=127.0.0.1:1511 \\",
+  "        --map 10.77.0.2=127.0.0.1:1512",
+];
+
+{
+  const base = location.href.replace(/[^/]*$/, "");
+  $("oneliner").textContent = `curl -fsSL ${base}relay/demo.sh | bash`;
+  $("steplines").textContent = SETUP.join("\n").replaceAll("<base>", base);
+}
+
+$("copycmd").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText($("oneliner").textContent);
+    $("copycmd").textContent = "Copied";
+    setTimeout(() => ($("copycmd").textContent = "Copy"), 1500);
+  } catch {
+    say("Could not reach the clipboard -- select the line and copy it.", "warn");
+  }
+});
+
+/* The one failure that looks like a hang rather than a mistake: a secure
+   page reaching a plain WebSocket. Loopback is exempt from mixed-content
+   blocking in current browsers, and some still gate it behind a
+   local-network permission, so this says what to expect rather than
+   promising either way. */
+function relayHint() {
+  const url = $("relay").value.trim();
+  const hint = $("relayhint");
+  const sock = toSocket(url);
+
+  if (netMode && netMode() === "inpage") {
+    hint.textContent = "";
+    return;
+  }
+  if (!url) {
+    hint.textContent = "Empty: boot with no network at all. The client "
+      + "comes up and finds no hub, which is a fine way to look around.";
+    return;
+  }
+  if (blockedAsMixed(location.protocol, url)) {
+    hint.innerHTML = "A page on https cannot open a plain <code>ws://</code> "
+      + "connection to anything but loopback. Use a <code>wss://</code> "
+      + "relay, or run one locally.";
+    return;
+  }
+  if (location.protocol === "https:" && sock.startsWith("ws://")) {
+    hint.innerHTML = "This page is on https and the relay is plain "
+      + "<code>ws</code>, which browsers allow for loopback -- yours may "
+      + "ask about local-network access first. If it refuses outright, run "
+      + "the relay with <code>--web .</code> and open the page from the "
+      + "relay instead: one origin, no mixed content.";
+    return;
+  }
+  hint.textContent = "";
+}
+$("relay").addEventListener("input", relayHint);
+relayHint();
+
+async function probeRelay(url) {
+  const ws = toSocket(url);
+  return new Promise((resolve) => {
+    let sock;
+    try {
+      sock = new WebSocket(ws);
+    } catch (e) {
+      resolve(`could not open ${ws}: ${e && e.message}`);
+      return;
+    }
+    const done = (why) => { try { sock.close(); } catch {} resolve(why); };
+    sock.addEventListener("open", () => done(null));
+    sock.addEventListener("error", () => done(`nothing answered at ${ws}`));
+    setTimeout(() => done(`no answer from ${ws} after 5s`), 5000);
+  });
+}
+
+$("probe").addEventListener("click", async () => {
+  const url = $("relay").value.trim();
+  say(`Testing <code>${url}</code>&hellip;`);
+  const why = await probeRelay(url);
+  if (why) {
+    add(why, "err");
+    add("Start the relay with the command above, then try again.");
+  } else {
+    add("The relay answered.", "ok");
+  }
+});
+
+/* ------------------------------------------------------------ persistence
+ *
+ * A browser tab forgets everything on reload, which for this client means a
+ * new CID, a re-hashed share and the favourites gone -- every time. v86 can
+ * hand over its whole machine state, so that is what gets kept: one blob in
+ * IndexedDB, restored on the next boot.
+ *
+ * IndexedDB rather than localStorage because the state is megabytes and
+ * localStorage is a few. It is saved on demand and on unload, not
+ * continuously: writing several megabytes on a timer in a tab that is also
+ * emulating a 486 is not a trade worth making. */
+const DB_NAME = "dosypp";
+const DB_STORE = "state";
+const DB_KEY = "v86-state";
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(DB_STORE))
+        db.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function stateLoad() {
+  try {
+    const db = await openDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readonly");
+      const get = tx.objectStore(DB_STORE).get(DB_KEY);
+      get.onsuccess = () => resolve(get.result || null);
+      get.onerror = () => reject(get.error);
+    });
+  } catch (e) {
+    /* Private windows and blocked storage both land here. The client works
+       without persistence; it just forgets. */
+    add(`No saved session available (${e && e.name}).`);
+    return null;
+  }
+}
+
+async function stateSave(bytes) {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).put(bytes, DB_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function stateForget() {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).delete(DB_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function missing(path) {
+  try {
+    const r = await fetch(path, { method: "HEAD" });
+    return r.ok ? null : path;
+  } catch {
+    return path;
+  }
+}
+
+/* --------------------------------------------------------------- the sound
+ *
+ * v86 builds its own speaker on an AudioContext. Browsers will not start
+ * one without a gesture, and Boot is the gesture -- but a context created
+ * before a gesture elsewhere on the page can still come up suspended, so
+ * this resumes it and reports which it is. Silence with no explanation is
+ * the thing worth avoiding: in v86 it could also mean the guest never
+ * found the card. */
+function soundStatus() {
+  const el = $("sound");
+  const sp = emulator && emulator.speaker_adapter;
+
+  if (!sp || !sp.audio_context) {
+    el.textContent = "no audio output in this browser";
+    return;
+  }
+  const ctx = sp.audio_context;
+  el.textContent = ctx.state === "running"
+    ? "sound: on" : `sound: ${ctx.state} (click the screen)`;
+}
+
+function setVolume(pct) {
+  const sp = emulator && emulator.speaker_adapter;
+  if (!sp || !sp.mixer) return;
+  const g = pct / 100;
+  try {
+    sp.mixer.node_gain_left.gain.value = g;
+    sp.mixer.node_gain_right.gain.value = g;
+  } catch { /* an older build may name these differently */ }
+}
+
+$("vol").addEventListener("input", (e) => setVolume(+e.target.value));
+
+async function wake() {
+  const sp = emulator && emulator.speaker_adapter;
+  if (sp && sp.audio_context && sp.audio_context.state !== "running") {
+    try { await sp.audio_context.resume(); } catch { /* needs a gesture */ }
+  }
+  soundStatus();
+}
+$("bezel").addEventListener("click", wake);
+
+/* ------------------------------------------------------------- game MIDI
+ *
+ * The tap is free and always on once the machine exists: it costs one
+ * function call per byte a game writes, and the counters it produces are
+ * the only evidence available when the audio does not work. A visitor who
+ * sees "412 bytes, 61 notes" and hears nothing knows the problem is this
+ * page's synthesiser and not their game.
+ *
+ * The synthesiser is opt-in because it means an AudioContext and a
+ * SoundFont download, and most of this demo is worth having without
+ * either. */
+const SOUNDFONT = "sf2/MuseScore_General.sf3";
+
+let midiTap = null;
+let midiNode = null;
+let midiCtx = null;
+let midiLoaded = false;
+let midiDevice = null;          /* a WebMidiOut, when that is the sink */
+
+function midiStatus(text, cls) {
+  const el = $("midistat");
+  el.textContent = text;
+  el.className = "tiny" + (cls ? " " + cls : "");
+}
+
+function midiCounts() {
+  if (!midiTap) return;
+  const s = midiTap.stream;
+  const out = midiDevice ? ` \u2014 ${midiDevice.summary()}` : "";
+  $("midicount").textContent = s.bytes
+    ? `the guest has written ${s.summary()} to the MPU-401${out}`
+    : "the guest has not written anything to the MPU-401 yet "
+      + "-- pick Roland / General MIDI in the game's setup";
+}
+
+/* ------------------------------------------------- out to your own synth */
+
+function showPorts(outputs) {
+  const sel = $("midiports");
+
+  sel.innerHTML = "";
+  for (const o of outputs) {
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = o.name;
+    sel.appendChild(opt);
+  }
+  sel.hidden = outputs.length === 0;
+
+  if (!outputs.length) {
+    midiStatus("no MIDI outputs", "warn");
+    add("Web MIDI works, but nothing is plugged in and no software synth "
+        + "is offering a port.", "warn");
+  }
+}
+
+async function midiToDevice() {
+  if (!emulator) {
+    add("Boot first: there is no MPU-401 until the machine exists.", "warn");
+    return;
+  }
+  if (!webmidiAvailable()) {
+    midiStatus("no Web MIDI", "err");
+    add("This browser has no Web MIDI, so the notes cannot leave it. "
+        + "Safari is the usual reason. Play it here instead.", "err");
+    return;
+  }
+
+  $("midiout").disabled = true;
+  try {
+    midiDevice = new WebMidiOut(
+      navigator.requestMIDIAccess.bind(navigator));
+    midiDevice.onoutputs = showPorts;
+
+    const outputs = await midiDevice.open();
+    showPorts(outputs);
+
+    if (!midiDevice.sysexAllowed)
+      add("Sysex was not permitted, so an MT-32 game's patch uploads will "
+          + "not reach your synth. Notes will.", "warn");
+
+    if (outputs.length) {
+      const name = midiDevice.use($("midiports").value);
+      midiStatus(`out to ${name}`, "ok");
+      add(`Game MIDI is going to ${name}.`, "ok");
+      attachTap();
+
+      /* The in-page synthesiser would otherwise play the same notes
+         alongside, a few milliseconds off. */
+      if (midiNode) {
+        midiNode.port.postMessage({ type: "panic" });
+        midiNode.disconnect();
+        midiNode = null;
+        midiLoaded = false;
+        $("midion").disabled = false;
+        $("midion").textContent = "Play it here instead (40MB)";
+      }
+    }
+  } catch (e) {
+    midiDevice = null;
+    midiStatus("failed", "err");
+    add(`Could not use a MIDI device: ${e && e.message}`, "err");
+  }
+  $("midiout").disabled = false;
+}
+
+$("midiout").addEventListener("click", midiToDevice);
+$("midiports").addEventListener("change", (e) => {
+  if (!midiDevice) return;
+  const name = midiDevice.use(e.target.value);
+  if (name) {
+    midiStatus(`out to ${name}`, "ok");
+    add(`Game MIDI is going to ${name}.`, "ok");
+  }
+});
+
+/* A note is held until something releases it, and a tab closing releases
+   nothing -- the drone would outlive the page in somebody's hardware. */
+window.addEventListener("pagehide", () => {
+  if (midiDevice) midiDevice.close();
+});
+
+function attachTap() {
+  if (midiTap) return;
+  try {
+    midiTap = listen(emulator, (msg) => {
+      /* Whichever sink the visitor chose. Both can be live at once, and
+         nothing stops that, but the buttons switch rather than add: two
+         synthesisers playing the same notes a few milliseconds apart
+         sounds like a fault. */
+      if (midiDevice)
+        midiDevice.send(msg);
+      if (midiNode)
+        midiNode.port.postMessage({ type: "midi", data: msg });
+    });
+    setInterval(midiCounts, 1000);
+  } catch (e) {
+    add(`Could not tap the MPU-401: ${e && e.message}`, "err");
+  }
+}
+
+async function soundFont(file) {
+  if (file)
+    return await file.arrayBuffer();
+
+  midiStatus("fetching the SoundFont (40MB)\u2026");
+  const r = await fetch(SOUNDFONT);
+  if (!r.ok)
+    throw new Error(`${SOUNDFONT}: HTTP ${r.status}. Run make sf2, or `
+                    + `pick a SoundFont from your own disk.`);
+  return await r.arrayBuffer();
+}
+
+async function midiEnable(file) {
+  if (!emulator) {
+    add("Boot first: there is no MPU-401 until the machine exists.", "warn");
+    return;
+  }
+
+  $("midion").disabled = true;
+  try {
+    if (!midiCtx) {
+      midiCtx = new AudioContext();
+      await midiCtx.audioWorklet.addModule("midiworklet.mjs");
+      midiNode = new AudioWorkletNode(midiCtx, "midi-worklet", {
+        numberOfInputs: 0,
+        outputChannelCount: [2],
+      });
+      midiNode.connect(midiCtx.destination);
+
+      midiNode.port.onmessage = (e) => {
+        const m = e.data;
+        if (m.type === "ready") {
+          midiLoaded = true;
+          midiStatus(`on, ${m.presets} instruments`, "ok");
+          add(`MIDI ready: ${m.presets} instruments`
+              + (m.queued ? `, ${m.queued} queued messages played` : "")
+              + ".", "ok");
+        } else if (m.type === "error") {
+          midiStatus("failed", "err");
+          add(`MIDI synthesiser: ${m.message}`, "err");
+        }
+      };
+    }
+
+    await midiCtx.resume();
+    attachTap();
+
+    /* One sink at a time, for the same reason as the other direction. */
+    if (midiDevice) {
+      midiDevice.close();
+      midiDevice = null;
+      add("Stopped sending to your MIDI device.");
+    }
+
+    const buf = await soundFont(file);
+    midiStatus("loading the SoundFont\u2026");
+    midiNode.port.postMessage({ type: "soundfont", buffer: buf }, [buf]);
+
+  } catch (e) {
+    midiStatus("failed", "err");
+    add(`MIDI could not start: ${e && e.message}`, "err");
+    $("midion").disabled = false;
+  }
+}
+
+$("midion").addEventListener("click", () => midiEnable(null));
+$("sfpick").addEventListener("click", () => $("sffile").click());
+$("sffile").addEventListener("change", (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) {
+    midiLoaded = false;
+    midiEnable(f);
+  }
+});
+
+/* ----------------------------------------------------------- typing for you
+ *
+ * The walkthrough's buttons. Keystrokes, not a script: they go through the
+ * emulated keyboard controller exactly as a key press would, so what they
+ * drive is the client's own int 9h handler. */
+document.querySelectorAll("button.keys").forEach((b) => {
+  b.addEventListener("click", () => {
+    if (!emulator) return;
+    const text = b.dataset.keys.replaceAll("\\n", "\n");
+
+    /* With a gap between characters. v86 injects into the keyboard
+       controller, and without one it injects faster than the controller
+       delivers: the guest sees the first character and loses the rest, so
+       "BOOM" arrives as "b". The same lesson the DOS keyboard rig learned
+       with scancodes. */
+    emulator.keyboard_send_text(text, 60);
+    wake();
+  });
+});
+
+function enableKeys(on) {
+  document.querySelectorAll("button.keys").forEach((b) => (b.disabled = !on));
+}
+
+/* ------------------------------------------------------------------- boot */
+
+$("start").addEventListener("click", async () => {
+  $("start").disabled = true;
+  say("Checking local files&hellip;");
+
+  // Fail with a useful message rather than a blank screen: a missing BIOS or
+  // disk image is by far the most likely first-run problem.
+  const needed = [
+    "vendor/v86.wasm",
+    "vendor/seabios.bin",
+    "vendor/vgabios.bin",
+    "images/boot.img",
+  ];
+  const absent = (await Promise.all(needed.map(missing))).filter(Boolean);
+
+  /* The hard disk comes either way: as compressed pieces with a manifest
+     (what gets published) or as one file (a development tree). Only the
+     absence of both is a problem -- a check for the single file alone
+     would refuse to boot the published bundle. */
+  const haveParts = !(await missing("images/dosypp.img.json"));
+  const haveWhole = !(await missing("images/dosypp.img"));
+  if (!haveParts && !haveWhole)
+    absent.push("images/dosypp.img.json or images/dosypp.img");
+  if (absent.length) {
+    say("Missing files:", "err");
+    absent.forEach((p) => add(`&nbsp;&nbsp;<code>${p}</code>`, "err"));
+    add("Run <code>tools/fetchv86.sh</code> and <code>tools/mkv86img.sh</code> &mdash; see <code>docs/V86.md</code>.");
+    $("start").disabled = false;
+    return;
+  }
+
+  /* Either the hub in this tab, or a relay to one somewhere else. The
+     in-tab case still goes through v86's Wisp adapter: it is handed a
+     WebSocket that is not one. */
+  let relay;
+  if (netMode() === "inpage") {
+    try {
+      await startInPageHub();
+      relay = "wisp://in-page/";
+    } catch (e) {
+      say(`The hub in this tab could not start: ${e && e.message}`, "err");
+      add("Pick \u201cthrough a relay\u201d instead, or serve this page "
+          + "with its attic/ directory beside it.", "warn");
+      $("start").disabled = false;
+      return;
+    }
+  } else {
+    /* v86 picks its network adapter from the scheme, and only wisp:// and
+       wisps:// select the Wisp one -- see relayurl.mjs. Whatever was typed
+       gets normalised here rather than quietly producing a guest with a
+       network that cannot carry anything. */
+    relay = toWisp($("relay").value);
+  }
+  const streamed = $("stream").checked;
+
+  /* Whichever form of the disk this tree publishes. The pieces win
+     whenever they exist: the published bundle has no single-file image at
+     all, and asking for one is a demo that cannot boot. web/disk.mjs owns
+     that decision and test/web/test-disk.mjs holds it still -- it used to
+     depend on the "stream" box, which defaults to off on localhost, so
+     the published bundle failed with "Download failed: images/dosypp.img"
+     for anybody serving it from their own machine. */
+  const disk = chooseDisk(await diskManifest(), streamed);
+  add(`Disk: ${disk.describe}.`);
+
+  say(relay
+      ? `Booting&hellip; relay <code>${relay}</code>`
+      : "Booting with no network: the client will come up and find no hub.");
+
+  emulator = new V86({
+    wasm_path: "vendor/v86.wasm",
+    bios: { url: "vendor/seabios.bin" },
+    vga_bios: { url: "vendor/vgabios.bin" },
+    // Boot the FreeDOS floppy, with our files on C:. Making a FAT16 hard
+    // disk bootable needs DOS's own SYS, so the floppy does that job.
+    fda: { url: "images/boot.img", async: false },
+    hda: disk,
+    // Low nibble is the first device tried: 1=floppy, 2=hd, 3=cd.
+    boot_order: 0x321,
+
+    // 16MB: a well-equipped period machine. If DOSy++ needs more than this,
+    // that is a bug in DOSy++, not a requirement (see README).
+    memory_size: 16 * 1024 * 1024,
+    vga_memory_size: 2 * 1024 * 1024,
+
+    // No relay means no NIC at all, which boots faster and is honest: the
+    // alternative is a packet driver talking to nothing.
+    ...(relay ? {
+      net_device: {
+        type: "ne2k",
+        relay_url: relay,
+        router_ip: "192.168.86.1",
+        vm_ip: "192.168.86.100",
+      },
+    } : {}),
+
+    screen_container: $("screen_container"),
+    autostart: true,
+  });
+
+  emulator.add_listener("screen-set-size", fitScreen);
+
+  emulator.add_listener("emulator-ready", async () => {
+    add("Emulator ready.", "ok");
+    fitScreen();
+    $("pause").disabled = false;
+    $("reset").disabled = false;
+    $("save").disabled = false;
+    $("forget").disabled = false;
+    enableKeys(true);
+    setVolume(+$("vol").value);
+    wake();
+
+    /* Always tapped, synthesiser or not: the counters are what tell a
+       visitor whether their game is sending MIDI at all. */
+    attachTap();
+    midiCounts();
+
+    /* A saved session, if there is one: the identity, the hash cache and
+       the favourites as they were, rather than a fresh machine. */
+    const saved = await stateLoad();
+
+    if (saved) {
+      try {
+        await emulator.restore_state(saved.buffer ? saved.buffer : saved);
+        add(`Restored your last session (${Math.round(
+              (saved.byteLength || saved.length) / 1024)}KB).`, "ok");
+        return;
+      } catch (e) {
+        /* A state from a different v86 build will not load. Carrying on
+           with a fresh boot is better than a blank screen, and saying so
+           is better than either. */
+        add(`Saved session could not be restored (${e && e.message}) -- ` +
+            "booting fresh.", "err");
+      }
+    }
+  });
+
+  emulator.add_listener("download-error", (e) => {
+    const name = (e && e.file_name) || "a file";
+    add(`Download failed: <code>${name}</code>`, "err");
+
+    /* The disk is the one worth explaining. Two things produce this and
+       neither is obvious from the file name: a page being served from a
+       tree whose image is mid-rebuild (make pages deletes and rewrites
+       it), and a page kept in the browser's cache after the bundle moved
+       to compressed pieces, which asks for a file that no longer
+       exists. */
+    if (/dosypp(\.img|-)/.test(name)) {
+      add("That is the disk. Either something is rebuilding it right now "
+          + "(<code>make pages</code> rewrites it), or this page was "
+          + "cached before the disk moved to compressed pieces &mdash; a "
+          + "reload with a cache bypass fixes the second.", "warn");
+    }
+  });
+
+  if (disk.use_parts)
+    $("stream").disabled = true;    /* the pieces are already in blocks */
+
+  if (relay && netMode() === "relay") {
+    const why = await probeRelay(relay);
+    if (why) {
+      add(why, "err");
+      add("DOS will come up and find no hub. Start the relay, then press "
+          + "Reset.", "warn");
+    } else {
+      add("Relay reachable.", "ok");
+    }
+  }
+
+  setInterval(soundStatus, 2000);
+});
+
+$("pause").addEventListener("click", () => {
+  if (!emulator) return;
+  if (emulator.is_running()) {
+    emulator.stop();
+    $("pause").textContent = "Resume";
+  } else {
+    emulator.run();
+    $("pause").textContent = "Pause";
+  }
+});
+
+$("save").addEventListener("click", async () => {
+  if (!emulator) return;
+  $("save").disabled = true;
+  try {
+    const bytes = new Uint8Array(await emulator.save_state());
+    await stateSave(bytes);
+    add(`Session saved (${Math.round(bytes.byteLength / 1024)}KB).`, "ok");
+  } catch (e) {
+    add(`Could not save: ${e && e.message}`, "err");
+  }
+  $("save").disabled = false;
+});
+
+$("forget").addEventListener("click", async () => {
+  try {
+    await stateForget();
+    add("Saved session forgotten. The next boot starts fresh.");
+  } catch (e) {
+    add(`Could not forget: ${e && e.message}`, "err");
+  }
+});
+
+/* Closing the tab is the usual way a session ends, so it is the usual time
+   to keep it. Best effort: the browser gives an unload handler very little
+   time, and a failed save is not worth blocking on. */
+window.addEventListener("pagehide", () => {
+  if (!emulator) return;
+  emulator.save_state().then((buf) => stateSave(new Uint8Array(buf)))
+                       .catch(() => {});
+});
+
+$("reset").addEventListener("click", () => {
+  if (emulator) {
+    emulator.restart();
+    say("Reset.");
+  }
+});
+
+/* Which build this is, so a bug report can name one and a stale tab is
+   visible as one. */
+fetch("build.json").then((r) => r.json()).then((b) => {
+  const mb = (b.disk_bytes / 1048576).toFixed(0);
+  const src = b.repo ? ` &middot; <a href="${b.repo}">source</a>` : "";
+  $("build").innerHTML =
+    `Built ${b.built} from <code>${b.rev}</code> &middot; v86 ${b.v86}`
+    + ` &middot; ${mb}MB disk image` + src;
+}).catch(() => { $("build").textContent = ""; });
+</script>
+</body>
+</html>

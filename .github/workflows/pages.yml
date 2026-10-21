@@ -1,0 +1,144 @@
+# Build the browser demo and publish it to GitHub Pages.
+#
+# Everything here is the same commands a person runs locally -- the DJGPP
+# container, make atmos, make warez, make images, tools/mkpages.sh -- so a
+# failure in CI is reproducible on a laptop and vice versa. The one thing
+# that is CI-specific is PAGES_BASE: relay/demo.sh has to name the site it
+# came from, and only the workflow knows what that is.
+#
+# The bundle is tested before it is published. test/web/run-pages-test.sh
+# serves it over HTTP, boots the disk image out of it and downloads a game
+# through the relay, so what goes out has been run rather than merely built.
+name: pages
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "src/**"
+      - "web/**"
+      - "tools/**"
+      - "test/web/**"
+      - "test/v86/**"
+      - "Makefile"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and let a newer push win: a demo site is not worth
+# queueing builds for.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools this build needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mtools unzip zip rhash curl
+          # rhash is not strictly needed, but with it every hash the demo
+          # hub will advertise is cross-checked against an independent
+          # implementation before it is published.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The DJGPP cross-toolchain, which takes about ten minutes to build
+      # from source. Cached by layer, so only the first run on a given
+      # Dockerfile pays for it.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: DJGPP toolchain image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/docker/Dockerfile.djgpp
+          tags: dosypp-djgpp:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The fetched things, which are the slow part after the toolchain:
+      # the v86 engine, the FreeDOS boot floppy, the packet driver, CWSDPMI
+      # and the free DOS packages. All hash-pinned by their fetchers.
+      - name: Cache downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache
+            web/vendor
+            dosbox-x/c/PCIPKT.COM
+            dosbox-x/c/NE2000.COM
+            dosbox-x/c/CWSDPMI.EXE
+          key: fetch-${{ hashFiles('tools/fetch*.sh') }}
+
+      - name: Fetch what the image needs
+        run: |
+          ./tools/fetchv86.sh
+          ./tools/fetchdos.sh        # CWSDPMI, the DPMI host
+          ./tools/fetchpktdrv.sh     # PCIPKT.COM for v86's RTL8029
+          ./tools/fetchatmos.sh      # the free DOS software in the share
+
+      - name: Build
+        run: |
+          make host tthof            # the host build, and the hasher
+          make dos-docker            # the real DOS binary, in the container
+          cp build/dos/DOSYPP.EXE dosbox-x/c/
+          make warez                 # the demo hub's share, hashes and all
+          make images                # boot.img + dosypp.img
+
+      # Three knobs worth knowing about, all at their defaults here:
+      #   PAGES_SF=none         leave the 40MB SoundFont out (-38MB)
+      #   SHARE_FULL=1          put FreeDoom's 27MB package in the share
+      #   PAGES_WHOLE_IMAGE=1   publish one 128MB image instead of pieces
+      - name: Assemble the bundle
+        env:
+          PAGES_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          ./tools/mkpages.sh
+          echo "published $(du -sh build/pages | cut -f1)"
+
+      # Publish only what has been run. This boots the bundle's own disk
+      # image, streamed over HTTP, and downloads a game through the relay.
+      - name: Test the bundle
+        run: ./test/web/run-pages-test.sh
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      # The disk is published as zstd-compressed pieces, which are whole
+      # small files -- so nothing here depends on Range any more. What is
+      # worth checking is that the first piece and its manifest are
+      # actually being served: a path mistake would show up as a demo that
+      # boots to a blank screen.
+      - name: Is the disk being served?
+        run: |
+          base="${{ steps.deployment.outputs.page_url }}"
+          for f in images/dosypp.img.json images/dosypp-0-1048576.img.zst; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base$f")
+            echo "$base$f -> HTTP $code"
+            [ "$code" = "200" ] || echo "::warning::$f answered $code"
+          done

@@ -1,0 +1,25 @@
+ DOSy++  •  DOSyPP Stub Hub                                      8 NODES ONLINE 
+┌─┤ NODE INFO ├────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                                                                              │
+│   SYSTEM            DOSy++ 0.1 for MS-DOS                                    │
+│   HUB               DOSyPP Stub Hub                                          │
+│   ADDRESS           127.0.0.1                                                │
+│                                                                              │
+│   HANDLE            Warlord                                                  │
+│   NODE (SID)        AAAN                                                     │
+│   CID               45HNYDTJA6ZKHQJTHB4NJIL6FKJZR2FEXRWT7TQ                  │
+│                                                                              │
+│   KEYBOARD          BIOS int 16h                                             │
+│   SPEAKER           off                                                      │
+│   MUSIC             DOSy++ attic                                             │
+│   THROUGH           WAV file at 11025 Hz, /tmp/dsy.MIh5/dn/shoot.wav         │
+│   SLOTS             3 of 3 free                                              │
+│   SHARING           26 files, 120.0M                                         │
+│   STATE             NORMAL                                                   │
+│   NODES ONLINE      8                                                        │
+│                                                                              │
+│   Commands: /help lists all of them. /me, /pm, /whois, /browse, /search,     │
+└───          /stats, /desc, /slots, /connect, /fav, /save, /raw, /quit.───────┘
+ NODE AAAN  •  Warlord  •  F1 HELP  •  PGUP/PGDN SCROLL                         
+ 1-MSGS 2-WHO 3-FILES 4-XFER 5-SHARE 6-MOTD 7-INFO 8-BROWSE 9-SETUP 0-HUBS G-BYE

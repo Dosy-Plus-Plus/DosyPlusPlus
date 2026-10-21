@@ -1,0 +1,32 @@
+# uhub: a real ADC hub, for conformance testing.
+#
+# tools/stubhub.py is for development -- it is our own code, so agreeing with
+# it proves only that we are self-consistent. uhub is an independent
+# implementation: it enforces sequencing, recomputes our CID from the PID we
+# send, and verifies the password hash itself. If DOSy++ logs in here, the
+# protocol work is actually right.
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git ca-certificates \
+        libsqlite3-dev libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --depth 1 https://github.com/janvidar/uhub.git
+
+WORKDIR /build/uhub/build
+RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DRELEASE=ON \
+    && make -j4 \
+    && make install || true
+
+# Record what got built, since uhub's install layout varies by version.
+RUN (find / -name "uhub*" -type f -perm -u+x 2>/dev/null; \
+     find / -name "mod_*.so" 2>/dev/null) > /opt/uhub-files.txt; \
+    cat /opt/uhub-files.txt
+
+WORKDIR /etc/uhub
+EXPOSE 1511
+CMD ["/bin/bash"]

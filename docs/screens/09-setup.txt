@@ -1,0 +1,25 @@
+ DOSy++  •  DOSyPP Stub Hub                                      8 NODES ONLINE 
+┌─┤ NODE SETUP ├───────────────────────────────────────────────────────────────┐
+│ SETTING        VALUE                                                         │
+│ HUB ADDRESS    127.0.0.1                    (reconnect)                      │
+│ HUB PORT       62599                        (reconnect)                      │
+│ HANDLE         Warlord                      (reconnect)                      │
+│ PASSWORD                                    (reconnect)                      │
+│ DESCRIPTION    calling from 1994                                             │
+│ UPLOAD SLOTS   3                                                             │
+│ ACTIVE MODE    no                           (reconnect)                      │
+│ LISTEN PORT    1412                         (reconnect)                      │
+│ HASHING        auto                                                          │
+│ RESCAN MINS    0                                                             │
+│ SOUND          no                                                            │
+│ THEME          renegade                                                      │
+│ SCREEN ROWS    25                                                            │
+│ MUSIC          yes                                                           │
+│ MUSIC FILE     /Users/ash/omnisync/Working Files/dosyplusplus/art/DOSYPP.MOD │
+│ MUSIC RATE     11025                                                         │
+│                                                                              │
+│  hostname or dotted quad                                                     │
+│                                                                              │
+└──ENTER edits or toggles  S saves  (settings live in DOSYPP.INI)──────────────┘
+ NODE AAAQ  •  Warlord  •  F1 HELP  •  PGUP/PGDN SCROLL                         
+ 1-MSGS 2-WHO 3-FILES 4-XFER 5-SHARE 6-MOTD 7-INFO 8-BROWSE 9-SETUP 0-HUBS G-BYE
