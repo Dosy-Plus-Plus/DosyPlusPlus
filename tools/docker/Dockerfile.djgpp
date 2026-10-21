@@ -1,0 +1,88 @@
+# DJGPP + Watt-32 cross-toolchain for DOSy++.
+#
+# Why a container rather than a host install: GCC 12.2's build system does not
+# survive clang 21 plus a current macOS SDK (its bundled zlib breaks on
+# `#define fdopen(fd,mode) NULL`), and patching around that is a losing game.
+# Debian's GCC builds it cleanly.
+#
+# This builds a NATIVE arm64 cross-compiler on arm64 hosts -- no amd64
+# emulation, so DOS builds are fast.
+#
+#   docker build -f tools/docker/Dockerfile.djgpp -t dosypp-djgpp .
+#   tools/dosmake.sh make dos
+#
+FROM debian:bookworm-slim
+
+ARG GCC_VERSION=12.2.0
+ARG DJGPP_PREFIX=/opt/djgpp
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        bison \
+        flex \
+        texinfo \
+        zlib1g-dev \
+        libgmp-dev \
+        libmpfr-dev \
+        libmpc-dev \
+        curl \
+        ca-certificates \
+        git \
+        unzip \
+        patch \
+        make \
+        bash \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- DJGPP cross-compiler -------------------------------------------------
+
+WORKDIR /build
+RUN git clone --depth 1 https://github.com/andrewwutw/build-djgpp.git
+
+WORKDIR /build/build-djgpp
+# C only: this project has no C++, and it roughly halves the build.
+RUN ENABLE_LANGUAGES=c DJGPP_PREFIX=${DJGPP_PREFIX} \
+        ./build-djgpp.sh ${GCC_VERSION} \
+    && ${DJGPP_PREFIX}/bin/i586-pc-msdosdjgpp-gcc --version
+
+ENV PATH="${DJGPP_PREFIX}/bin:${PATH}"
+ENV DJGPP_PREFIX=${DJGPP_PREFIX}
+
+# ---- Watt-32 TCP/IP stack -------------------------------------------------
+
+# We take DJGPP's own prebuilt Watt-32 package rather than cross-building from
+# git, because cross-building cannot be completed at all:
+#
+#   configur.sh states it up front -- "generation of inc/sys/<target>.err ...
+#   won't happen: util/errnos.c relies on being compiled as a target-exe". The
+#   build then dies on a missing sys/djgpp.err. Producing it needs dj_err.exe,
+#   a DOS binary, which means a DOS emulator in the build.
+#
+# wat3211b.zip ships libwatt.a *and* that generated djgpp.err. Watt-32 is C
+# with a stable ABI, so a library built by an older DJGPP links fine against
+# objects from GCC 12.2.
+#
+# (If a from-source build is ever wanted, the landmines are documented in
+# docs/TOOLCHAIN.md -- they are not few.)
+ARG WATT32_ZIP=https://www.delorie.com/pub/djgpp/current/v2tk/wat3211b.zip
+
+WORKDIR /tmp/watt
+RUN curl -fsSL "${WATT32_ZIP}" -o watt.zip \
+    && unzip -q watt.zip \
+    && mkdir -p ${DJGPP_PREFIX}/watt32 \
+    && cp -r net/watt/inc net/watt/lib ${DJGPP_PREFIX}/watt32/ \
+    && test -f ${DJGPP_PREFIX}/watt32/lib/libwatt.a \
+    && test -f ${DJGPP_PREFIX}/watt32/inc/tcp.h \
+    && test -f ${DJGPP_PREFIX}/watt32/inc/sys/djgpp.err \
+    && ls -l ${DJGPP_PREFIX}/watt32/lib/ \
+    && rm -rf /tmp/watt
+
+# CWSDPMI is needed at runtime on the DOS side, so keep it findable.
+RUN find / -iname "CWSDPMI.EXE" 2>/dev/null | head -5 > /opt/cwsdpmi-locations.txt || true
+
+ENV WATT32_ROOT=${DJGPP_PREFIX}/watt32
+
+WORKDIR /src
+CMD ["make", "dos"]

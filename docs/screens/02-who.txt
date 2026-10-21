@@ -1,0 +1,25 @@
+ DOSy++  •  DOSyPP Stub Hub                                      5 NODES ONLINE 
+┌─┤ WHO'S ONLINE ├─────────────────────────────────────────────────────────────┐
+│ HANDLE             MODE   ACCESS   UPLD CR  SLT  TERMINAL                    │
+│──────────────────────────────────────────────────────────────────────────────│
+│ Razor              ACTV   USER      120.0M    1  DOSy++ 0.1                  │
+│ Phantom            PASV   USER          0B    1  DOSy++ 0.1                  │
+│ Acid               PASV   USER          0B    1  DOSy++ 0.1                  │
+│ Nitro              PASV   USER          0B    1  DOSy++ 0.1                  │
+│ Warlord            PASV   USER      120.0M    3  DOSy++ 0.1                  │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│ 5 nodes online  •  240.0M total upload credit                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+ NODE AAAG  •  Warlord  •  F1 HELP  •  PGUP/PGDN SCROLL                         
+ 1-MSGS 2-WHO 3-FILES 4-XFER 5-SHARE 6-MOTD 7-INFO 8-BROWSE 9-SETUP 0-HUBS G-BYE

@@ -1,0 +1,25 @@
+ DOSy++  •  DOSyPP Stub Hub                                      5 NODES ONLINE 
+┌─┤ FILE AREAS ├───────────────────────────────────────────────────────────────┐
+│ SCAN FOR : ZIP                                                               │
+│ NOT      :                                 TAB  next field                   │
+│ AREA     : ◄ ANY          ►                ENTER starts the scan             │
+│ MIN SIZE :             KB                  ESC  leaves  SPACE tags           │
+│──────────────────────────────────────────────────────────────────────────────│
+│   FILENAME                                   SIZE SRC  FIRST SOURCE          │
+│   TURBORUN.ZIP                               2.2M   3  Razor                 │
+│   SKYLINE2.ZIP                              12.0M   2  Phantom               │
+│   ZIPTOOL2.EXE                             193.5K   4  Acid                  │
+│   ATTIC-0894.ZIP                            85.0K   3  Acid                  │
+│   ATTIC-1294.ZIP                            92.0K   2  Nitro                 │
+│   ELIZA.ZIP                                 15.7K   1  Razor                 │
+│   BLKDROP.ZIP                              109.9K   1  Razor                 │
+│   FREEDOOM.ZIP                              26.3M   1  Razor                 │
+│   DUNGEON5.ZIP                              15.5M   1  Razor                 │
+│   CARDPACK.ZIP                             410.1K   1  Razor                 │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│ 10 results  •  0 tagged  •  sort: SOURCES                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+ NODE AAAH  •  Warlord  •  F1 HELP  •  PGUP/PGDN SCROLL                         
+ 1-MSGS 2-WHO 3-FILES 4-XFER 5-SHARE 6-MOTD 7-INFO 8-BROWSE 9-SETUP 0-HUBS G-BYE

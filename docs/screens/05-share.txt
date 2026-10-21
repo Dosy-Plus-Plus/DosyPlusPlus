@@ -1,0 +1,25 @@
+ DOSy++  •  DOSyPP Stub Hub                                      8 NODES ONLINE 
+┌─┤ MY SHARE ├─────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│  SHARING    /tmp/dsy.MIh5/DL                                                 │
+│                                                                              │
+│  FOUND      26 files, 120.0M                                                 │
+│  HASHED     26 files, 120.0M                                                 │
+│                                                                              │
+│  STATUS     READY -- other nodes can find these files                        │
+│                                                                              │
+│             7 search replies sent this session                               │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│  R rescans and rehashes  (hashes are cached in DOSYPP.TTH)                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+ NODE AAAI  •  Warlord  •  F1 HELP  •  PGUP/PGDN SCROLL                         
+ 1-MSGS 2-WHO 3-FILES 4-XFER 5-SHARE 6-MOTD 7-INFO 8-BROWSE 9-SETUP 0-HUBS G-BYE

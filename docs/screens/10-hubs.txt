@@ -1,0 +1,25 @@
+ DOSy++  •  DOSyPP Stub Hub                                      8 NODES ONLINE 
+┌─┤ FAVOURITE HUBS ├───────────────────────────────────────────────────────────┐
+│   HUB                      ADDRESS                                           │
+│──────────────────────────────────────────────────────────────────────────────│
+│ ► The Attic                adc://attic.example.org:1511 PW Warlord           │
+│   Riverside BBS            adc://riverside.example.net:1511    Warlord       │
+│   Pitfall                  adcs://pitfall.example.org:2780                   │
+│   DOSyPP Test Hub          adc://127.0.0.1:1511            Warlord           │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│ ENTER connects  A adds this hub  P password  N handle  * auto  D deletes  TAB│
+└──────────────────────────────────────────────────────────────────────────────┘
+ NODE AAAR  •  Warlord  •  F1 HELP  •  PGUP/PGDN SCROLL                         
+ 1-MSGS 2-WHO 3-FILES 4-XFER 5-SHARE 6-MOTD 7-INFO 8-BROWSE 9-SETUP 0-HUBS G-BYE

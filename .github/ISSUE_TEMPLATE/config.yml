@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions, hardware stories, does this work with X
+    url: https://github.com/Dosy-Plus-Plus/DosyPlusPlus/discussions
+    about: Discussions is the better place to ask rather than report.
+  - name: Security, or a file that should not be bundled
+    url: https://github.com/Dosy-Plus-Plus/DosyPlusPlus/blob/main/SECURITY.md
+    about: Memory-safety bugs reachable from the network go by email first.
