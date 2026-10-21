@@ -180,7 +180,12 @@ static void test_index(void)
                   "add %d failed", i);
         }
         CHECK(ix.count == 1002, "count is %u after growth", ix.count);
-        CHECK_STR(share_virt(&ix, a), "DL/a.zip");   /* pool survived */
+        /* The pool survived: offsets still resolve after 1000 inserts.
+           Looked up by index rather than through `a`, because files_grow()
+           reallocs ix->files and every pointer handed out before it is
+           dangling afterwards -- which this check used to do, and which
+           read back as "DL/a.zip" on one allocator and "" on another. */
+        CHECK_STR(share_virt(&ix, &ix.files[0]), "DL/a.zip");
     }
 
     share_free(&ix);

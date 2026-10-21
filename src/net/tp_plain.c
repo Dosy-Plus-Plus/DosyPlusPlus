@@ -24,6 +24,12 @@
 #else
 #  include <sys/types.h>
 #  include <sys/socket.h>
+/* select() and struct timeval, named here rather than relied upon: glibc
+   declares neither under -std=c99 unless the header is included, while the
+   macOS SDK exposes both from sys/types.h. Without these, the host build
+   works on a Mac and fails on Linux at "unknown type name 'fd_set'". */
+#  include <sys/select.h>
+#  include <sys/time.h>
 #  include <netinet/in.h>
 #  include <netinet/tcp.h>
 #  include <netdb.h>

@@ -491,6 +491,15 @@ third_party/bzip2/bzlib.h:
 
 $(BZ_SRC): third_party/bzip2/bzlib.h
 
+# And so does the one file of ours that includes it. Without this, whether
+# the fetch runs before bz.c compiles is down to the order make happens to
+# walk a link's prerequisites -- and on a machine whose SDK ships its own
+# bzlib.h (macOS does) the mistake is invisible, because the compile
+# quietly uses that one instead of the pinned 1.0.8 sources. On a runner
+# with no system copy, every gate fails at the first object.
+$(BUILD)/host/src/share/bz.o $(BUILD)/dos/src/share/bz.o: \
+	third_party/bzip2/bzlib.h
+
 # Packet drivers into dosbox-x/c/
 pktdrv:
 	./tools/fetchpktdrv.sh
