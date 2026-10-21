@@ -1,9 +1,9 @@
 /* hashbench.c - how fast is TTH on this machine?
  *
- * IMPLEMENTATION_PLAN.md S5 claims roughly 0.3-1 MB/s on a 486 and builds
- * scheduling decisions on it (overnight hashing, a resumable hash queue, a
- * progress gauge that has to be honest). That number deserves measuring
- * rather than assuming.
+ * The design assumed roughly 0.3-1 MB/s on a 486 and built scheduling
+ * decisions on it: overnight hashing, a resumable hash queue, a progress
+ * gauge that has to be honest. That number deserves measuring rather than
+ * assuming.
  *
  * Integer arithmetic only -- the whole project is built -msoft-float, so a
  * printf("%f") here would not even link.

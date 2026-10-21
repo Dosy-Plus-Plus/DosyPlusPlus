@@ -14,8 +14,7 @@ Architecture:
 Because v86 sends the *dotted-quad the guest dialed* as the Wisp CONNECT
 hostname, destinations are configured here as IP mappings. The guest dials a
 sentinel address, the relay connects to the real hub -- optionally over TLS,
-which is how the browser build gets ADCS support without crypto in DOS
-(IMPLEMENTATION_PLAN.md S6).
+which is how the browser build gets ADCS support without crypto in DOS.
 
     ./tools/wisprelay.py --map 10.77.0.1=127.0.0.1:1511
     ./tools/wisprelay.py --map 10.77.0.1=adcs.example.org:2780:tls

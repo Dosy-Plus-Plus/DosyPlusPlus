@@ -61,8 +61,8 @@ int adc_identity_from_b32(adc_identity *id, const char *pid_b32);
  *
  * DOS has no system entropy source, so this mixes the clock, the tick
  * counter and a caller-supplied salt through Tiger. That is adequate for an
- * identity but is NOT a secure random: see the entropy item in TODO.md,
- * which has to be solved properly before native TLS. */
+ * identity but is NOT a secure random. A real entropy source is one of the
+ * things that has to be solved properly before native TLS. */
 void adc_identity_generate(adc_identity *id, unsigned long salt);
 
 /* Build the PAS response for a given password and the base32 random from

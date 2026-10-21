@@ -7,7 +7,7 @@
 #
 # The host target exists because almost every bug in this project will be in
 # protocol, hashing or indexing code, and debugging those inside DOSBox is
-# slow enough to change how much gets built. See IMPLEMENTATION_PLAN.md S2.
+# slow enough to change how much gets built.
 
 # ---------------------------------------------------------------- toolchains
 
@@ -30,7 +30,7 @@ HOST_CC ?= cc
 WARN := -Wall -Wextra -Wno-unused-parameter -Wno-format-truncation
 
 # No floating point anywhere in DOSy++ (some 486 cores are SX-class and FPGA
-# cores may have incomplete x87) -- see TODO.md. -msoft-float turns a stray
+# cores may have incomplete x87). -msoft-float turns a stray
 # double into a link error instead of a trap on real hardware.
 DOS_CFLAGS  := -O2 $(WARN) -std=gnu89 -march=i386 -msoft-float \
                -DDOSYPP_WATT32 -I src -I $(WATT32_ROOT)/inc
@@ -241,8 +241,14 @@ dos-small: dos
 	$(DJGPP_TRIPLE)-strip $(BUILD)/dos/DOSYPP-S.EXE
 	@ls -l $(BUILD)/dos/DOSYPP.EXE $(BUILD)/dos/DOSYPP-S.EXE
 
+# rm first: the output name is upper case, a case-insensitive host stores
+# whatever case created the file, and the DJGPP container then cannot create
+# DOSYPP.EXE over a DOSYPP.exe it can see but not match. That shows up as
+# "ld: cannot open output file ... No such file or directory" for a
+# directory that plainly exists, on every other build.
 $(BUILD)/dos/DOSYPP.EXE: $(DOS_OBJ)
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(DJGPP_CC) $(DOS_CFLAGS) $(DOS_LDFLAGS) -o $@ $^ $(DOS_LIBS)
 
 # The hash tests, built for DOS. This is the other half of the Phase 1 gate:
@@ -258,10 +264,12 @@ DOS_TEST_OBJ := $(patsubst %.c,$(BUILD)/dos/%.o,$(PORTABLE_SRC) $(PLATFORM_SRC) 
 # host.
 $(BUILD)/dos/TOKTEST.EXE: test/host/test_tokenize.c $(DOS_TEST_OBJ)
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(DJGPP_CC) $(DOS_CFLAGS) $(DOS_LDFLAGS) -o $@ $< $(DOS_TEST_OBJ) $(DOS_LIBS)
 
 $(BUILD)/dos/HASHTEST.EXE: test/host/test_hash.c $(DOS_TEST_OBJ)
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(DJGPP_CC) $(DOS_CFLAGS) $(DOS_LDFLAGS) -o $@ $< $(DOS_TEST_OBJ) $(DOS_LIBS)
 
 # The MPU-401, which is a serial port and not an instrument: this writes
@@ -270,6 +278,7 @@ $(BUILD)/dos/HASHTEST.EXE: test/host/test_hash.c $(DOS_TEST_OBJ)
 # whatever is listening, not us.
 $(BUILD)/dos/MIDITEST.EXE: test/dos/miditest.c
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(DJGPP_CC) $(DOS_CFLAGS) -o $@ $<
 
 # Premium game audio, measured: a DOS program drives the MPU-401, DOSBox-X
@@ -293,6 +302,7 @@ dos-bench: toolchain-check $(BUILD)/dos/HASHBENC.EXE $(BUILD)/dos/SRCHBENC.EXE \
 
 $(BUILD)/dos/HASHBENC.EXE: test/dos/hashbench.c $(DOS_TEST_OBJ)
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(DJGPP_CC) $(DOS_CFLAGS) $(DOS_LDFLAGS) -o $@ $< $(DOS_TEST_OBJ) $(DOS_LIBS)
 
 dos-bench-run: dos-bench-any $(MODULES)
@@ -306,6 +316,7 @@ $(BUILD)/host/searchbench: test/dos/searchbench.c $(TEST_OBJ)
 
 $(BUILD)/dos/SRCHBENC.EXE: test/dos/searchbench.c $(DOS_TEST_OBJ)
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(DJGPP_CC) $(DOS_CFLAGS) $(DOS_LDFLAGS) -o $@ $< $(DOS_TEST_OBJ) $(DOS_LIBS)
 
 bench: $(BUILD)/host/hashbench $(BUILD)/host/searchbench \
@@ -322,6 +333,7 @@ $(BUILD)/host/musbench: test/dos/musbench.c $(TEST_OBJ)
 
 $(BUILD)/dos/MUSBENCH.EXE: test/dos/musbench.c $(DOS_TEST_OBJ)
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(DJGPP_CC) $(DOS_CFLAGS) $(DOS_LDFLAGS) -o $@ $< $(DOS_TEST_OBJ) $(DOS_LIBS)
 
 $(BUILD)/host/hashbench: test/dos/hashbench.c $(TEST_OBJ)

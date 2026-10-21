@@ -12,7 +12,7 @@
  *     a 1.0 request correctly; that is what 1.0 is for.
  *   - No TLS. An https:// URL fails with a message saying so rather than
  *     pretending. Same position as the hub connection: encryption is the
- *     relay's job until BearSSL lands (TODO.md).
+ *     relay's job until a native TLS stack lands.
  *   - Straight to a file. Nothing is buffered in memory, because a hublist
  *     is a megabyte and this machine has sixteen.
  *

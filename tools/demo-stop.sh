@@ -21,8 +21,8 @@ found=0
 #
 # This is not hypothetical: killing the hub while a DOSBox session was open
 # is exactly how a working demo turned into "failed to connect" inside DOS,
-# with nothing on the host to explain it. The DOS client has no reconnect
-# (see TODO.md), so it cannot recover.
+# with nothing on the host to explain it. The DOS client has no reconnect,
+# so it cannot recover.
 if [ "$FORCE" != 1 ] && pgrep -f "dosbox-x.*dosbox-demo.conf" >/dev/null 2>&1; then
     echo "A DOS demo is still running:" >&2
     pgrep -fl "dosbox-x.*dosbox-demo.conf" 2>/dev/null | sed 's/^/  /' >&2

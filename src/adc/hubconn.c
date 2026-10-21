@@ -170,7 +170,7 @@ static int send_own_inf(hubconn *h)
        to decide whether a CTM to us is worth sending.
      *
      * Not ADC0: that flag means "I accept encrypted client-to-client
-     * connections", and we have no TLS at all (TODO.md). uhub strips it
+     * connections", and we have no TLS at all. uhub strips it
      * with a warning, but a hub that believed it would arrange ADCS
      * transfers we cannot speak. So a passive client advertises nothing
      * and the SU field is left out entirely. */

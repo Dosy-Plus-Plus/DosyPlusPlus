@@ -2,9 +2,9 @@
  *
  * A hub broadcasts every member's searches to everyone, so on a busy hub
  * this runs constantly, in the same single thread as the UI and the hub
- * connection. TODO.md claimed the linear scans "would want a hash index at
- * 10,000 files" -- this is the measurement that claim deserved, and the
- * check that the index and the letter mask actually earn their keep.
+ * connection. The linear scans were assumed to "want a hash index at 10,000
+ * files" -- this is the measurement that assumption deserved, and the check
+ * that the index and the letter mask actually earn their keep.
  *
  * Four numbers:
  *

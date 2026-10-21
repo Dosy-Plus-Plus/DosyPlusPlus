@@ -33,8 +33,9 @@
    treated as a protocol violation rather than grown into. */
 #define ADC_LINE_MAX 4096
 
-/* DOSy++ is built without floating point (see IMPLEMENTATION_PLAN.md S6):
-   some 486 cores are SX-class. Percentages and rates use these helpers. */
+/* DOSy++ is built without floating point: some 486 cores are SX-class, and
+   FPGA cores may have incomplete x87. Percentages and rates use these
+   helpers. */
 #define PCT(part, whole) ((whole) ? (int)(((part) * 100) / (whole)) : 0)
 
 #endif /* DOSYPP_COMMON_H */

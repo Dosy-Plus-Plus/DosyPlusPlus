@@ -94,7 +94,8 @@ dosbox-x -conf dosbox-x.conf \
 `prefetch queue emulation requires the normal core setting` otherwise, which is
 why the base profile uses plain `cputype=486`.
 
-TTH hashing is the thing to measure this way — see `IMPLEMENTATION_PLAN.md` §5.
+TTH hashing is the thing to measure this way; `make dos-bench-run` is the rig
+that does it.
 
 ## Premium game audio (MPU-401 → FluidSynth, or an MT-32)
 

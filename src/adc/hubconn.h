@@ -8,7 +8,7 @@
  * Non-blocking throughout: hub_poll() reads whatever is available, frames
  * whole lines, and dispatches. A half-received message waits in the line
  * buffer. Nothing here calls recv() -- all I/O goes through the transport
- * vtable, so a TLS transport can be dropped in later (TODO.md).
+ * vtable, so a TLS transport can be dropped in later.
  *
  * Events go out through callbacks rather than being printed, so the Phase 3
  * UI can consume the same state machine the Phase 2 console client does.

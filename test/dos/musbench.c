@@ -1,9 +1,9 @@
 /* musbench.c - what does the music cost?
  *
  * The client mixes four channels from its main loop, in the same pass that
- * hashes a share and polls a hub. TODO.md has carried the honest admission
- * that nobody had measured what that costs, and that the answer might be
- * "turn the music off while downloading". This measures it.
+ * hashes a share and polls a hub. Nobody had measured what that costs, and
+ * the answer might well have been "turn the music off while downloading".
+ * This measures it.
  *
  * Four phases, in the order the question gets asked:
  *

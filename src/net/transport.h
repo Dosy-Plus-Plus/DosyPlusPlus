@@ -2,8 +2,7 @@
  *
  * Every socket read and write in DOSy++ goes through this vtable. The hub and
  * peer state machines must never call recv()/send() directly: a TLS transport
- * has to be able to slot in beside the plaintext one without touching them
- * (TODO.md, native TLS).
+ * has to be able to slot in beside the plaintext one without touching them.
  *
  * The one rule that is easy to get wrong: a readable socket does NOT imply
  * application data is available. A TLS record can arrive in pieces and yield

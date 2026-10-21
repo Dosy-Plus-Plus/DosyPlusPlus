@@ -102,10 +102,10 @@ a row of `192.168.1.10:151x` entries.
 The LAN leg is plaintext. Anyone on that network sees your hub traffic,
 including the password handshake. On a trusted home LAN that is a reasonable
 trade; on anything shared it is not. This is the main reason native TLS is on
-the backlog (`TODO.md`).
+the backlog.
 
 ## In the browser build
 
 The v86 WebSocket→TCP relay occupies exactly this position, so teaching it TLS
 gives the browser build ADCS with no extra moving parts — one relay instead of
-two. See `IMPLEMENTATION_PLAN.md` §6.
+two.

@@ -864,8 +864,10 @@ static void files_start_search(app *a);
 #define HASH_CHECKPOINT_SECS 60
 
 /* What to assume before this machine has hashed anything measurable: the
-   benchmarked 486DX2-66 figure from TODO.md. Only ever used to put a number
-   on "what would resuming cost", and labelled as an estimate when it is. */
+   throughput benchmarked on a 486DX2-66; test/dos/hashbench.c is the rig
+   that measures it on whatever machine you have. Only ever used to put a
+   number on "what would resuming cost", and labelled as an estimate when it
+   is. */
 #define HASH_ASSUMED_RATE (517UL * 1024UL)
 
 void app_share_start(app *a)
