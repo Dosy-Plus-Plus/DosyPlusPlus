@@ -48,3 +48,9 @@ web/build.json
 /dosbox-x/sf2/
 # What FluidSynth's file driver writes, if you run DOSBox-X with it.
 fluidsynth.wav
+
+# Working notes, not published: the phase plan and the running list. The
+# source still cites them by name in places -- they are the reasoning
+# behind decisions, kept out of the repository on purpose.
+/IMPLEMENTATION_PLAN.md
+/TODO.md
