@@ -32,6 +32,21 @@ DEST="${ATMOS_DIR:-$ROOT/build/atmos}"
 CACHE="${DOSYPP_CACHE:-$ROOT/.cache}"
 BASE="${FREEDOS_BASE:-https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.3}"
 
+# Somewhere else to look when the first place does not have it. ibiblio is
+# the only host for the per-package FreeDOS repositories -- there is no
+# second mirror -- and it answers 503 for the whole subtree under load,
+# which is enough to stop a CI run that has done nothing wrong. So a copy
+# you control can go first and ibiblio can be the fallback:
+#
+#   FREEDOS_BASE=https://github.com/<org>/<repo>/releases/download/<tag> \
+#   FREEDOS_BASE_ALT=https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.3 \
+#       ./tools/fetchatmos.sh
+#
+# tools/pubpackages.sh publishes such a copy. Every file is still checked
+# against the sha256 pinned below, wherever it came from, so a mirror is
+# not something that has to be trusted.
+BASE_ALT="${FREEDOS_BASE_ALT:-}"
+
 # repo/file  area-in-the-share  sha256  what it is
 #
 # The areas are where a 1994 board would have filed them, because that is
@@ -81,17 +96,39 @@ while read -r path area want_sha _rest; do
         # come from -- FreeDOS has no second mirror for the per-package
         # repositories -- and it answers 503 under load. A single attempt
         # turns a busy minute into a failed build.
+        # Two layouts at each base: the repository's own (games/boom.zip)
+        # and a flat one (boom.zip), because a GitHub release asset has no
+        # directories. A 404 on one is not an error, it is the other
+        # layout; only running out of candidates is an error.
+        urls="$BASE/$path $BASE/$name"
+        [ -n "$BASE_ALT" ] && urls="$urls $BASE_ALT/$path $BASE_ALT/$name"
+
         fetched=0
-        for attempt in 1 2 3; do
-            if curl -fsSL -m 300 -o "$out.part" "$BASE/$path"; then
-                fetched=1
-                break
-            fi
-            rm -f "$out.part"
-            [ "$attempt" -lt 3 ] && sleep $((attempt * 3))
+        for url in $urls; do
+            for attempt in 1 2 3; do
+                # The status code, not just success or failure: a 404 means
+                # "wrong layout, try the next URL" and retrying it three
+                # times with backoff wastes nine seconds per package. A 503
+                # -- which is what ibiblio does under load -- means "ask
+                # again", and a single attempt there turns a busy minute
+                # into a failed build.
+                code=$(curl -fsSL -m 300 -o "$out.part" \
+                            -w '%{http_code}' "$url" 2>/dev/null) || true
+                if [ "${code:-000}" = "200" ] && [ -s "$out.part" ]; then
+                    fetched=1
+                    break
+                fi
+                rm -f "$out.part"
+                case "${code:-000}" in
+                    404|403|410) break ;;    # not here; next candidate
+                esac
+                [ "$attempt" -lt 3 ] && sleep $((attempt * 3))
+            done
+            [ "$fetched" = 1 ] && break
         done
         if [ "$fetched" != 1 ]; then
-            echo "could not fetch $BASE/$path (3 attempts)" >&2
+            echo "could not fetch $name from any of:" >&2
+            for url in $urls; do echo "    $url" >&2; done
             netfail=$((netfail + 1))
             continue
         fi
@@ -153,11 +190,23 @@ if [ "$got" -eq 0 ]; then
     echo >&2
     echo "no packages were fetched at all." >&2
     echo "  source: $BASE" >&2
+    [ -n "$BASE_ALT" ] && echo "  fallback: $BASE_ALT" >&2
     if [ "$netfail" -gt 0 ]; then
         echo "  $netfail download(s) failed after three attempts each." >&2
-        echo "  ibiblio hosts these and has no mirror for the per-package" >&2
-        echo "  repositories, so an outage there stops this script. Try" >&2
-        echo "  again later, or point FREEDOS_BASE at a copy you control." >&2
+        case "$BASE$BASE_ALT" in
+            *ibiblio*)
+                echo "  ibiblio hosts these and has no mirror for the" >&2
+                echo "  per-package repositories, so an outage there stops" >&2
+                echo "  this script. Try again later, or publish a copy" >&2
+                echo "  with tools/pubpackages.sh and point FREEDOS_BASE" >&2
+                echo "  at it." >&2
+                ;;
+            *)
+                echo "  Nothing was reachable at the base(s) above. These" >&2
+                echo "  are the FreeDOS 1.3 repositories; unset" >&2
+                echo "  FREEDOS_BASE to use ibiblio directly." >&2
+                ;;
+        esac
     fi
     exit 1
 fi

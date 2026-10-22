@@ -65,6 +65,28 @@ If a rig needs a port, use `free_port` and `start_stub_hub` from
 `test/host/hublib.sh`. Hard-coded ports are how several rigs ended up
 testing whatever else was running on the machine.
 
+## When the FreeDOS packages will not download
+
+`make warez` shares real DOS software, fetched by `tools/fetchatmos.sh`
+from the FreeDOS 1.3 repositories. Those live in exactly one place --
+ibiblio -- and it answers 503 for the whole subtree under load, at which
+point nothing can be fetched and several gates fail with no obvious
+cause.
+
+The fetcher takes two bases and tries both, in either the repository's
+layout (`games/boom.zip`) or a flat one (`boom.zip`):
+
+```sh
+FREEDOS_BASE=https://github.com/<org>/<repo>/releases/download/freedos-1.3-packages \
+FREEDOS_BASE_ALT=https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.3 \
+    ./tools/fetchatmos.sh
+```
+
+`tools/pubpackages.sh` publishes that release from your `.cache`, after
+checking every file against the sha256 pinned in the fetcher. CI already
+uses this: the release on the repository first, ibiblio second. Nothing is
+trusted either way -- the hashes are checked again on the way down.
+
 ## Protocol changes
 
 Agreeing with `tools/stubhub.py` proves we are self-consistent, not

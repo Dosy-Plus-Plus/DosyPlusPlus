@@ -88,6 +88,16 @@ jobs:
           key: fetch-${{ hashFiles('tools/fetch*.sh') }}
 
       - name: Fetch what the image needs
+        env:
+          # The packages come from a release on this repository first, and
+          # from ibiblio only if that release has not been published (or is
+          # missing a file). ibiblio is the only upstream for the
+          # per-package FreeDOS repositories and answers 503 for the whole
+          # subtree under load, which was enough to turn a green tier red.
+          # Both are hash-checked by the fetcher, so neither is trusted.
+          # tools/pubpackages.sh publishes the release.
+          FREEDOS_BASE: https://github.com/${{ github.repository }}/releases/download/freedos-1.3-packages
+          FREEDOS_BASE_ALT: https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.3
         run: |
           ./tools/fetchv86.sh
           ./tools/fetchdos.sh        # CWSDPMI, the DPMI host
