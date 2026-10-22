@@ -58,7 +58,7 @@ BASE_ALT="${FREEDOS_BASE_ALT:-}"
 # peers as software. Update a hash deliberately when you mean to update a
 # package -- FREEDOS_ALLOW_UNPINNED=1 skips the check for a one-off.
 SET="
-games/freedoom.zip     WAREZ/GAMES  b0352ccc4e7f85b39651c38f8656396bd537bdcd3cca1127dbf06e3e871ed720  FreeDoom, a free Doom-compatible game
+https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip WAREZ/GAMES  3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59  as=FREEDOOM.ZIP Freedoom 0.13.0, from the project's own release
 games/boom.zip         WAREZ/GAMES  fb54217f62483a0a4e10b5d19132b70ebdffddf64fae465e5d6eb4880da2f5c0  Boom, a Bomberman-style game
 games/gnuchess.zip     WAREZ/GAMES  70a2c893b5bfae680b4b3181500ceb88ea2d501488488f38d4e83f1502c186e8  GNU Chess
 games/eliza.zip        WAREZ/GAMES  fd4bbca1c1eacd97661e5880fedcc767aa7faea28e458c31b92cbf4765bcfad4  Eliza, the 1966 chatbot
@@ -82,10 +82,19 @@ netfail=0
 total=0
 printf '%-18s %-13s %s\n' FILE AREA SIZE
 
-while read -r path area want_sha _rest; do
+while read -r path area want_sha rest; do
     [ -z "$path" ] && continue
     name="$(basename "$path")"
     out="$CACHE/$name"
+
+    # A row whose first field is a URL comes from its own project rather
+    # than from the FreeDOS repositories, and says what to store it as:
+    # "as=FREEDOOM.ZIP" keeps the share 8.3, which the demo's disk needs
+    # because long filename support is off there on purpose.
+    store="$(echo "$name" | tr 'a-z' 'A-Z')"
+    case "$rest" in
+        as=*) store="${rest%% *}"; store="${store#as=}" ;;
+    esac
 
     if [ ! -f "$out" ]; then
         # --fail so a 404 does not leave an HTML error page named .zip,
@@ -100,8 +109,16 @@ while read -r path area want_sha _rest; do
         # and a flat one (boom.zip), because a GitHub release asset has no
         # directories. A 404 on one is not an error, it is the other
         # layout; only running out of candidates is an error.
-        urls="$BASE/$path $BASE/$name"
-        [ -n "$BASE_ALT" ] && urls="$urls $BASE_ALT/$path $BASE_ALT/$name"
+        case "$path" in
+            http://*|https://*)
+                # Its own project publishes it; there is nothing to mirror
+                # and no second layout to guess.
+                urls="$path" ;;
+            *)
+                urls="$BASE/$path $BASE/$name"
+                [ -n "$BASE_ALT" ] &&
+                    urls="$urls $BASE_ALT/$path $BASE_ALT/$name" ;;
+        esac
 
         fetched=0
         for url in $urls; do
@@ -165,7 +182,7 @@ while read -r path area want_sha _rest; do
     fi
 
     mkdir -p "$DEST/$area"
-    cp "$out" "$DEST/$area/$(echo "$name" | tr 'a-z' 'A-Z')"
+    cp "$out" "$DEST/$area/$store"
     sz=$(wc -c < "$out" | tr -d ' ')
     total=$((total + sz))
     got=$((got + 1))
