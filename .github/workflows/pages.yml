@@ -100,13 +100,6 @@ jobs:
           key: fetch-${{ hashFiles('tools/fetch*.sh') }}
 
       - name: Fetch what the image needs
-        env:
-          # The packages come from a release on this repository first, and
-          # from ibiblio only if that release has not been published (or is
-          # missing a file). ibiblio is the only upstream for the
-          # per-package FreeDOS repositories and answers 503 for the whole
-          # subtree under load, which was enough to turn a green tier red.
-          # Both are hash-checked by the fetcher, so neither is trusted.
         run: |
           ./tools/fetchv86.sh
           ./tools/fetchdos.sh        # CWSDPMI, the DPMI host

@@ -49,6 +49,15 @@ jobs:
       # ours against, and the transfer rigs verify downloads with it. Its
       # absence would not fail those rigs -- they skip what they cannot
       # check -- which is exactly why it is installed rather than hoped for.
+      # The workflow files themselves. Three of them now set environment
+      # and matrix things, and an `env:` left with nothing under it parses
+      # as valid YAML and is rejected by GitHub only once pushed -- which
+      # costs a round trip to find out. actionlint says so locally.
+      - name: Lint the workflows
+        run: |
+          docker run --rm -v "$PWD/.github/workflows:/wf:ro" \
+            rhysd/actionlint:latest -no-color /wf/*.yml
+
       - name: Tools
         run: |
           sudo apt-get update
