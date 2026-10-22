@@ -55,8 +55,12 @@ jobs:
       # costs a round trip to find out. actionlint says so locally.
       - name: Lint the workflows
         run: |
-          docker run --rm -v "$PWD/.github/workflows:/wf:ro" \
-            rhysd/actionlint:latest -no-color /wf/*.yml
+          # The repository, not the workflow directory, and no glob:
+          # actionlint finds .github/workflows itself, and a /wf/*.yml
+          # would be expanded by this shell -- where that path does not
+          # exist -- and handed to the container literally.
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            rhysd/actionlint:latest -no-color
 
       - name: Tools
         run: |
