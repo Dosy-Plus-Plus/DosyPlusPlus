@@ -8,6 +8,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="$(mktemp -d)"
 HUB_PORT=${SETUP_HUB_PORT:-24991}
@@ -55,7 +56,12 @@ DOWN=$'\033[B'
 #   S                                -> write the file
 echo "driving the setup door..."
 (
-    sleep 5
+    # Anchored on the connection rather than on process start, then given
+    # the same settle the door always needed: "connected" is logged within
+    # a second, and the first keys used to arrive at five. Pressing at one
+    # second saved nothing and edited nothing -- the door had not drawn.
+    await_line "$RUN/run.log" "connected" || true
+    sleep 4
     printf '%s%s' "$DOWN" "$DOWN"; sleep 1
     printf '\r';                    sleep 1
     printf 'After\r';               sleep 1

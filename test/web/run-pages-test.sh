@@ -277,7 +277,19 @@ if [ -f "$BUNDLE/images/dosypp.img.json" ]; then
     node - "$BUNDLE/images" "$ROOT/web/images/dosypp.img" <<'JS'
 import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { zstdDecompressSync } from "node:zlib";
+/* A namespace import, not a named one: `import { zstdDecompressSync }` on
+   a Node without it fails at link time with a module-resolution stack
+   trace, which is how this check was first written and why it could never
+   have run. node:zlib grew zstd in 22.15. */
+import * as zlib from "node:zlib";
+const zstdDecompressSync = zlib.zstdDecompressSync;
+
+if (typeof zstdDecompressSync !== "function") {
+    console.log(`FAIL: this Node (${process.version}) has no zstdDecompressSync;`
+                + " node:zlib grew it in 22.15, and the published disk is"
+                + " zstd pieces");
+    process.exit(1);
+}
 import { join } from "node:path";
 
 const [dir, original] = process.argv.slice(2);

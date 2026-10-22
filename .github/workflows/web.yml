@@ -1,0 +1,114 @@
+# The browser tier: the real DOS binary, in v86, under Node.
+#
+# This is the half of the project a visitor actually touches, and until
+# now nothing checked it except a person running tools/sweep.sh. Eleven
+# gates: the client boots in the emulator, transfers a file, survives a
+# save/restore, makes a noise through the Sound Blaster, has its MPU-401
+# tapped and the MIDI rendered, downloads Doom and plays its soundtrack,
+# fetches a hub list over HTTP, runs the whole demo against the hub that
+# lives in the page, plays a game at a DOS prompt, and publishes a bundle
+# that is then served, booted and downloaded through.
+#
+# It is slow -- the DJGPP toolchain, two disk images and eleven emulator
+# runs -- so it does not run on every push to every branch. The host tier
+# does that; this one guards what gets published.
+name: web tier
+
+on:
+  push:
+    branches: [main, master, devel]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools this tier needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mtools unzip zip rhash curl
+          node --version
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22, not 20: test-pages reassembles the published disk from its
+          # zstd pieces with zstdDecompressSync, which node:zlib only grew
+          # in 22.15.
+          node-version: "22"
+
+      # The DJGPP cross-toolchain, which takes about ten minutes to build
+      # from source. Cached by layer, so only the first run on a given
+      # Dockerfile pays for it.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: DJGPP toolchain image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/docker/Dockerfile.djgpp
+          tags: dosypp-djgpp:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Everything fetched, hash-pinned by its own fetcher. The FreeDOS
+      # packages come from ibiblio, which has no mirror and answers 503
+      # under load, so a warm cache here is also what keeps this tier from
+      # depending on somebody else's uptime.
+      - name: Cache downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache
+            web/vendor
+            dosbox-x/sf2
+            dosbox-x/c/PCIPKT.COM
+            dosbox-x/c/NE2000.COM
+            dosbox-x/c/CWSDPMI.EXE
+          key: fetch-${{ hashFiles('tools/fetch*.sh') }}
+
+      - name: Fetch what the images need
+        run: |
+          ./tools/fetchv86.sh
+          ./tools/fetchdos.sh        # CWSDPMI, the DPMI host
+          ./tools/fetchpktdrv.sh     # PCIPKT.COM for v86's RTL8029
+          ./tools/fetchatmos.sh      # the free DOS software in the share
+          ./tools/fetchsynth.sh      # the SoundFont synthesiser
+          ./tools/fetchsf2.sh        # and the SoundFont it plays through
+
+      - name: Build
+        run: |
+          make host tthof            # the host build, and the hasher
+          make dos-docker            # the real DOS binary, in the container
+          cp build/dos/DOSYPP.EXE dosbox-x/c/
+          make warez                 # the demo hub's share, hashes and all
+          make images                # boot.img + dosypp.img
+
+      - name: Sweep the web tier
+        env:
+          SWEEP_KEEP: "1"            # keep passing logs too, for the artifact
+        run: ./tools/sweep.sh web
+
+      # Every gate's log, pass or fail. A failure here is an emulator on
+      # somebody else's machine: the serial output and the screen dumps are
+      # the only way to see what the DOS side was doing.
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-sweep-logs
+          path: build/sweep/
+          if-no-files-found: warn
+          retention-days: 14

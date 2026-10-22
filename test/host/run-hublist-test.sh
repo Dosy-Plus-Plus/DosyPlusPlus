@@ -11,6 +11,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="$(mktemp -d)"
 HUB_A=${HUBLIST_HUB_A:-25001}
@@ -90,8 +91,12 @@ echo "hubs on $HUB_A and $HUB_B, list served on $WEB_PORT"
 # only usable one in it.
 echo "fetching the list and switching hubs..."
 (
-    sleep 5;  printf 'F'
-    sleep 6;  printf '\r'
+    # F once the client is on a hub, ENTER once the list has actually been
+    # served: the web server's own access log says when that happened.
+    await_line "$RUN/run.log" "connected"              || true
+    sleep 2; printf 'F'
+    await_line "$RUN/web.log" "GET /hublist.xml.bz2"    || true
+    sleep 0.5; printf '\r'
     sleep 10
 ) | ( cd "$RUN/node" && exec "$CLIENT" -c "$RUN/node/node.ini" \
         --screenshot "$RUN/shot.txt" --null-display --door 10 \

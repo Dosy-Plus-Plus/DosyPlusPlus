@@ -63,6 +63,7 @@ mkdir -p "$CACHE" "$DEST"
 
 got=0
 bad=0
+netfail=0
 total=0
 printf '%-18s %-13s %s\n' FILE AREA SIZE
 
@@ -75,11 +76,25 @@ while read -r path area want_sha _rest; do
         # --fail so a 404 does not leave an HTML error page named .zip,
         # which is the failure mode that wastes an afternoon: the file
         # exists, has the right name, and is not a zip.
-        curl -fsSL -m 300 -o "$out.part" "$BASE/$path" || {
-            echo "could not fetch $BASE/$path" >&2
+        #
+        # Three attempts, backing off: ibiblio is the only place these
+        # come from -- FreeDOS has no second mirror for the per-package
+        # repositories -- and it answers 503 under load. A single attempt
+        # turns a busy minute into a failed build.
+        fetched=0
+        for attempt in 1 2 3; do
+            if curl -fsSL -m 300 -o "$out.part" "$BASE/$path"; then
+                fetched=1
+                break
+            fi
             rm -f "$out.part"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 3))
+        done
+        if [ "$fetched" != 1 ]; then
+            echo "could not fetch $BASE/$path (3 attempts)" >&2
+            netfail=$((netfail + 1))
             continue
-        }
+        fi
         mv "$out.part" "$out"
     fi
 
@@ -127,6 +142,31 @@ if [ "$bad" -gt 0 ]; then
     echo "$bad package(s) refused on a hash mismatch -- see above" >&2
     exit 1
 fi
+
+# Nothing fetched is a failure, and it has to be said here. This used to
+# print "cached in ..." and exit 0, leaving a directory containing only
+# the README below -- so the first thing anybody saw was mkshare.sh three
+# steps later saying "nothing small enough to share", which describes the
+# symptom and not the cause. ibiblio was returning 503 for the whole
+# FreeDOS subtree, and the CI log said nothing about it.
+if [ "$got" -eq 0 ]; then
+    echo >&2
+    echo "no packages were fetched at all." >&2
+    echo "  source: $BASE" >&2
+    if [ "$netfail" -gt 0 ]; then
+        echo "  $netfail download(s) failed after three attempts each." >&2
+        echo "  ibiblio hosts these and has no mirror for the per-package" >&2
+        echo "  repositories, so an outage there stops this script. Try" >&2
+        echo "  again later, or point FREEDOS_BASE at a copy you control." >&2
+    fi
+    exit 1
+fi
+
+if [ "$netfail" -gt 0 ]; then
+    echo "$netfail package(s) could not be downloaded -- see above" >&2
+    exit 1
+fi
+
 echo "cached in $CACHE -- delete it to refetch"
 
 # A note that travels with the files, because somebody will find this

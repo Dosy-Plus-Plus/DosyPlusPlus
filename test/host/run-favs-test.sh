@@ -16,6 +16,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="$(mktemp -d)"
 HUB_A=${FAVS_HUB_A:-25021}
@@ -80,7 +81,8 @@ echo "hub A on $HUB_A (open), hub B on $HUB_B (password required)"
 # ENTER on the favourite, which is the only one.
 echo "connecting to the favourite..."
 (
-    sleep 5;  printf '\r'
+    await_line "$RUN/run.log" "connected" || true
+    sleep 2; printf '\r'
     sleep 10
 ) | ( cd "$RUN/node" && exec "$CLIENT" -c "$RUN/node/node.ini" \
         --screenshot "$RUN/shot.txt" --null-display --door 10 \
@@ -156,7 +158,8 @@ sound = no
 EOF
 
 (
-    sleep 5;  printf 'A'
+    await_line "$RUN/run3.log" "connected" || true
+    sleep 2; printf 'A'
     sleep 4
 ) | ( cd "$RUN/fresh" && exec "$CLIENT" -c "$RUN/fresh/node.ini" \
         --screenshot "$RUN/shot3.txt" --null-display --door 10 \

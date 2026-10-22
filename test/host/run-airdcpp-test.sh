@@ -29,6 +29,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="${AIRDC_RUN:-$(mktemp -d)}"
 HUB_PORT=${AIRDC_HUB_PORT:-24961}
@@ -203,7 +204,11 @@ echo "starting DOSy++ (active), searching, queueing and browsing..."
 # the list and the file arrive one after the other and the run has to be
 # long enough for both.
 (
-    sleep 30; printf '\r'        # ENTER: into the share root
+    # Thirty seconds was a guess at how long AirDC++ takes to answer; the
+    # answer itself is on the wire. Whether it sends a partial list or the
+    # whole files.xml.bz2 is its choice, so either counts.
+    await_line "$RUN/dosy/run.log" "CSND (list|file files\\.xml\\.bz2)" 60 || true
+    sleep 1;  printf '\r'        # ENTER: into the share root
     sleep 4;  printf '\r'        # ENTER: into the first directory
     sleep 45
 ) | ( cd "$RUN/dosy" && exec "$CLIENT" -c "$RUN/dosy/dosypp.ini" \

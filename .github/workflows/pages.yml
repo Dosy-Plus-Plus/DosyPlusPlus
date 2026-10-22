@@ -53,7 +53,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # 22, not 20: test-pages reassembles the published disk from its
+          # zstd pieces with zstdDecompressSync, which node:zlib only grew
+          # in 22.15.
+          node-version: "22"
 
       # The DJGPP cross-toolchain, which takes about ten minutes to build
       # from source. Cached by layer, so only the first run on a given

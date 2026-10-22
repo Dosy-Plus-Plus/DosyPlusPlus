@@ -119,16 +119,6 @@ fi
 # nothing descended, and the failure read as "navigation did not work".
 # --peer-trace puts the wire in the log, so the arrival of each list is an
 # observable event and the rig can wait for the real thing.
-await_line() {
-    local log="$1" pat="$2" limit="${3:-12}" n=0
-    while [ "$n" -lt $((limit * 10)) ]; do
-        grep -qaF "$pat" "$log" 2>/dev/null && return 0
-        sleep 0.1; n=$((n + 1))
-    done
-    echo "TIMED OUT after ${limit}s waiting in $(basename "$log"): $pat" >&2
-    return 1
-}
-
 echo "fetching the list and walking it..."
 (
     # ENTER into "up", once the root listing is on screen

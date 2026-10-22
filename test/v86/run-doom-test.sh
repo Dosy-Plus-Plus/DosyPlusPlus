@@ -34,7 +34,12 @@ exec < /dev/null
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN="$ROOT/build/v86doom"
 ZIP="${BOOM_ZIP:-$ROOT/build/atmos/WAREZ/GAMES/BOOM.ZIP}"
-SECS="${1:-75}"
+# How long to wait for the game to reach its title music, not how long to
+# run: doom.mjs records DOOM_MUSIC_SECS (30 by default) of music once the
+# first note appears, and stops. Generous, because waiting costs nothing
+# when the machine is quick -- and on a loaded one, Boom can spend over a
+# minute in R_Init before it plays anything.
+SECS="${1:-180}"
 SF="${DOSYPP_SF2:-$ROOT/dosbox-x/sf2/MuseScore_General.sf3}"
 
 command -v node >/dev/null 2>&1 || { echo "need node" >&2; exit 1; }
@@ -104,7 +109,7 @@ FAILED=0
 fail() { echo "FAIL: $*"; FAILED=1; }
 
 echo
-echo "--- running it for ${SECS}s"
+echo "--- up to ${SECS}s to reach the music, then recording it"
 DOSYPP_SF2="$SF" node "$ROOT/test/v86/doom.mjs" \
     "$RUN/boot.img" "$IMG" "$SECS" "$RUN/doom.wav" 2>&1 |
     tee "$RUN/doom.log"
