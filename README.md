@@ -213,7 +213,7 @@ The 128MB disk image publishes as 128 zstd-compressed pieces totalling
 `PAGES_SF=none` makes it 36MB.
 
 `make atmos` fetches free software from the FreeDOS 1.3 repositories —
-**Open Cubic Player**, **Arachne**, **FreeDoom**, **GNU Chess**, the
+**Open Cubic Player**, **Arachne**, **Freedoom**, **GNU Chess**, the
 **Crynwr** packet drivers, open ARJ and gzip — and lays it into the demo
 share, the browser image and `make demo`. It is period-correct in the way
 that matters: Open Cubic Player is the MOD player people used, Arachne is

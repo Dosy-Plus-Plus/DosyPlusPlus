@@ -28,8 +28,15 @@ need "$ROOT/web/relayurl.mjs" "the page imports it"
 need "$ROOT/web/midi.mjs"     "the page imports it"
 need "$ROOT/web/synth.mjs"    "the MIDI worklet imports it"
 need "$ROOT/web/midiworklet.mjs" "the page loads it as an AudioWorklet"
-need "$ROOT/web/vendor/synth/spessasynth_core.js" "run: tools/fetchsynth.sh"
-need "$ROOT/web/vendor/v86.wasm" "run: tools/fetchv86.sh"
+# Vendored and fetched rather than committed, so fetch them: telling a CI
+# runner to "run tools/fetchsynth.sh" is advice nobody is there to take,
+# and a bundle is not publishable without them. Both fetchers are
+# sha256-pinned and exit early if the files are already there.
+[ -f "$ROOT/web/vendor/synth/spessasynth_core.js" ] || "$ROOT/tools/fetchsynth.sh"
+[ -f "$ROOT/web/vendor/v86.wasm" ] || "$ROOT/tools/fetchv86.sh"
+
+need "$ROOT/web/vendor/synth/spessasynth_core.js" "tools/fetchsynth.sh ran and did not produce it"
+need "$ROOT/web/vendor/v86.wasm" "tools/fetchv86.sh ran and did not produce it"
 need "$ROOT/web/images/dosypp.img" "run: make images"
 need "$ROOT/web/images/boot.img"   "run: make images"
 need "$ROOT/build/warez/SHARE.TXT" "run: make warez"

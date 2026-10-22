@@ -114,8 +114,19 @@ REFS="$REFS attic/SHARE.TXT attic/warez/games/BLKDROP.ZIP CREDITS.txt"
 REFS="$REFS LICENSE.txt"
 REFS="$REFS midiworklet.mjs synth.mjs vendor/synth/spessasynth_core.js"
 REFS="$REFS vendor/synth/stb-vorbis.js"
-[ -f "$BUNDLE/sf2/MuseScore_General.sf3" ] &&
+# The SoundFont is optional by design (PAGES_SF=none drops 38MB), but
+# "optional" has to mean "deliberately left out", not "the build forgot to
+# fetch it". Unless it was asked for, it has to be there: the page offers a
+# button that fetches it by name, and a missing file is a 404 nobody sees
+# until a visitor presses it.
+if [ "${PAGES_SF:-}" = "none" ]; then
+    echo "  soundfont:               left out on purpose (PAGES_SF=none)"
+elif [ -f "$BUNDLE/sf2/MuseScore_General.sf3" ]; then
     REFS="$REFS sf2/MuseScore_General.sf3"
+else
+    fail "the bundle has no SoundFont and PAGES_SF is not 'none' -- the
+       page's \"play it here\" button would 404. Run make sf2."
+fi
 
 # The disk, in whichever form this bundle publishes. The manifest is what
 # the page asks for first; the pieces are named by v86's own convention,
@@ -266,7 +277,19 @@ if [ -f "$BUNDLE/images/dosypp.img.json" ]; then
     node - "$BUNDLE/images" "$ROOT/web/images/dosypp.img" <<'JS'
 import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { zstdDecompressSync } from "node:zlib";
+/* A namespace import, not a named one: `import { zstdDecompressSync }` on
+   a Node without it fails at link time with a module-resolution stack
+   trace, which is how this check was first written and why it could never
+   have run. node:zlib grew zstd in 22.15. */
+import * as zlib from "node:zlib";
+const zstdDecompressSync = zlib.zstdDecompressSync;
+
+if (typeof zstdDecompressSync !== "function") {
+    console.log(`FAIL: this Node (${process.version}) has no zstdDecompressSync;`
+                + " node:zlib grew it in 22.15, and the published disk is"
+                + " zstd pieces");
+    process.exit(1);
+}
 import { join } from "node:path";
 
 const [dir, original] = process.argv.slice(2);

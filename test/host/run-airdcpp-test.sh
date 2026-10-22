@@ -29,6 +29,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="${AIRDC_RUN:-$(mktemp -d)}"
 HUB_PORT=${AIRDC_HUB_PORT:-24961}
@@ -69,7 +70,17 @@ docker image inspect "$IMAGE" > /dev/null 2>&1 || {
     docker pull --platform linux/amd64 "$IMAGE" || exit 1; }
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 mkdir -p "$RUN/air/cfg" "$RUN/air/share/warez" "$RUN/air/dl" \
          "$RUN/dosy/share/warez" "$RUN/dosy/dl"
@@ -203,7 +214,11 @@ echo "starting DOSy++ (active), searching, queueing and browsing..."
 # the list and the file arrive one after the other and the run has to be
 # long enough for both.
 (
-    sleep 30; printf '\r'        # ENTER: into the share root
+    # Thirty seconds was a guess at how long AirDC++ takes to answer; the
+    # answer itself is on the wire. Whether it sends a partial list or the
+    # whole files.xml.bz2 is its choice, so either counts.
+    await_line "$RUN/dosy/run.log" "CSND (list|file files\\.xml\\.bz2)" 60 || true
+    sleep 1;  printf '\r'        # ENTER: into the share root
     sleep 4;  printf '\r'        # ENTER: into the first directory
     sleep 45
 ) | ( cd "$RUN/dosy" && exec "$CLIENT" -c "$RUN/dosy/dosypp.ini" \
@@ -481,5 +496,6 @@ fi
 
 echo "--- DOSy++ output ---" >&2
 tail -25 "$RUN/dosy/run.log" >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "AIRDCPP FAILED" >&2
 exit 1

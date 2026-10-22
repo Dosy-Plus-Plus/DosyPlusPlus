@@ -16,7 +16,7 @@ named in it.
 |---|---|
 | Every bundled program is free software | each package's own `Copying-policy` line, listed in `CREDITS.txt` |
 | Nothing is shareware or abandonware | the above: GPL-2, BSD-2, BSD-3, zlib, Info-ZIP |
-| The Doom data is not id Software's | `DOOM.WAD` inside `boom.zip` is **Freedoom** — its own copyright notice says "Contributors to the Freedoom project", BSD 3-clause |
+| The Doom data is not id Software's | `DOOM.WAD` inside `boom.zip` is **Freedoom** — its own copyright notice says "Contributors to the Freedoom project", BSD 3-clause. The full share's `FREEDOOM.ZIP` is Freedoom 0.13.0 fetched from the project's own release, whose sha256 matches the PGP-signed `CHECKSUM` it publishes beside it |
 | The engine is not id Software's | Boom 2.02a, "A GPL port of the Doom source code", relicensed by its copyright holders in 1999 |
 | Nothing was obtained from a warez site | every artifact is fetched from the FreeDOS 1.3 repositories by `tools/fetchatmos.sh`, pinned by sha256 |
 | The file names are not real releases | the invented filler in `tools/stubhub.py` was renamed for this reason: a listing of commercial titles this project does not have would be a claim it cannot support |

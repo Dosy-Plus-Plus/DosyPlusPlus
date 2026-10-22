@@ -38,6 +38,62 @@ lsm_field() {   # $1 = lsm file, $2 = field
         sed "s/^[^:]*:[[:space:]]*//" | tr -d '\r'
 }
 
+# A package that is not from the FreeDOS repositories: its own licence
+# file is the evidence. Classified by the clauses actually present in the
+# text rather than by a name somebody remembered -- BSD's three forms
+# differ by exactly one paragraph, and that paragraph is greppable.
+describe_by_licence_file() {   # $1 = zip; 0 if it could describe it
+    local zip="$1" name lic licfile copyright kind
+    name="$(basename "$zip")"
+
+    rm -rf "$TMP/l"; mkdir -p "$TMP/l"
+    unzip -o -q -j "$zip" "*/COPYING.txt" "*/COPYING" "*/LICENSE" \
+          "*/LICENSE.txt" "COPYING.txt" "COPYING" "LICENSE" "LICENSE.txt" \
+          -d "$TMP/l" 2>/dev/null
+    lic="$(find "$TMP/l" -type f | head -1)"
+    [ -n "$lic" ] || return 1
+
+    licfile="$(unzip -Z1 "$zip" | grep -iE '(^|/)(COPYING|LICENSE)(\.txt)?$' |
+               head -1)"
+    # The first two non-empty lines, because the copyright sentence wraps:
+    # "Copyright (c) 2001-2024" on one line and who holds it on the next.
+    # The BOM goes too -- it is a byte, not a word, and it renders as
+    # mojibake in a text file served to a browser.
+    copyright="$(sed '1s/^\xEF\xBB\xBF//' "$lic" |
+                 grep -v '^[[:space:]]*$' | head -2 | tr '\n' ' ' |
+                 sed 's/[[:space:]]\{2,\}/ /g; s/^ //; s/ $//' | cut -c1-96)"
+
+    if grep -qi 'redistribution and use in source and binary forms' "$lic"; then
+        if grep -qi 'neither the name' "$lic"; then
+            kind="BSD 3-clause"
+        else
+            kind="BSD 2-clause"
+        fi
+    elif grep -qi 'GNU GENERAL PUBLIC LICENSE' "$lic"; then
+        kind="$(grep -m1 -oiE 'version [0-9]+' "$lic" |
+                sed 's/^/GPL /' | tr -d '\n')"
+        [ -n "$kind" ] || kind="GPL"
+    elif grep -qi 'permission is hereby granted, free of charge' "$lic"; then
+        kind="MIT/X11-style"
+    else
+        kind="see the licence file"
+    fi
+
+    # The archive's own top-level directory names and versions it better
+    # than its filename does ("freedoom-0.13.0" against "FREEDOOM.ZIP").
+    local title
+    title="$(unzip -Z1 "$zip" | sed -n 's|^\([^/]*\)/.*|\1|p' | sort -u)"
+    [ "$(printf '%s\n' "$title" | wc -l)" -eq 1 ] && [ -n "$title" ] ||
+        title="$(basename "$zip" | sed 's/\.[Zz][Ii][Pp]$//')"
+
+    printf '  %-18s %s\n' "$name" "$title"
+    printf '  %-18s   licence: %s, stated in %s inside the archive\n' \
+        "" "$kind" "${licfile:-the licence file}"
+    [ -n "$copyright" ] && printf '  %-18s   %s\n' "" "$copyright"
+    printf '\n'
+    return 0
+}
+
 describe_zip() {   # $1 = path to a FreeDOS package
     local zip="$1" name lsm title ver author policy
     name="$(basename "$zip")"
@@ -47,8 +103,14 @@ describe_zip() {   # $1 = path to a FreeDOS package
     lsm="$(find "$TMP/x" -name '*.LSM' | head -1)"
 
     if [ -z "$lsm" ]; then
+        # Not everything here is a FreeDOS package. One is fetched from
+        # its own project's release, and those carry a licence file rather
+        # than an LSM. Read that, the same way: quote what the file says
+        # and name the file, so a reader can check it inside the archive
+        # they were served.
+        describe_by_licence_file "$zip" && return
         printf '  %-18s %s\n' "$name" \
-            "!! no APPINFO/*.LSM: nothing says what this is"
+            "!! no APPINFO/*.LSM and no COPYING/LICENSE: nothing says what this is"
         missing=$((missing + 1))
         return
     fi

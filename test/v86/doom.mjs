@@ -83,7 +83,48 @@ const ticker = setInterval(() => {
                 + (s ? s.summary() : "no tap"));
 }, 10000);
 
-setTimeout(async () => {
+/* How much music to collect once it starts, and how long to wait for it
+   to start at all.
+ *
+ * This used to be a single deadline `seconds` after boot, which assumed
+ * the game reaches its title screen in a predictable time. On a loaded
+ * machine it does not: a run that measured fine here produced its first
+ * note at 69 seconds of a 75-second window, and the rig reported "7000ms
+ * of audible music, wanted 10000" -- a complaint about Doom's soundtrack
+ * that was really a complaint about the boot.
+ *
+ * So the window starts when the music does. `seconds` is now the budget
+ * for getting there; MUSIC_SECS is how much is then recorded. */
+const MUSIC_SECS = Number(process.env.DOOM_MUSIC_SECS || 30);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const collect = async () => {
+    const startBudget = Date.now() + seconds * 1000;
+    let musicAt = 0;
+
+    while (Date.now() < startBudget) {
+        const s = tap && tap.stream;
+        if (s && s.notes > 0) {
+            musicAt = Date.now();
+            console.log(`[harness] first note at `
+                        + `${((musicAt - started) / 1000).toFixed(1)}s; `
+                        + `recording ${MUSIC_SECS}s of it`);
+            break;
+        }
+        await sleep(250);
+    }
+
+    if (!musicAt) {
+        console.log(`[harness] no MIDI at all within ${seconds}s -- `
+                    + "measuring what there is, which is nothing");
+        return;
+    }
+    while (Date.now() - musicAt < MUSIC_SECS * 1000)
+        await sleep(250);
+};
+
+const judge = async () => {
     clearInterval(ticker);
 
     const s = tap && tap.stream;
@@ -102,7 +143,8 @@ setTimeout(async () => {
     if (!/Startup v2\.02/.test(serial))
         fail("Boom did not start -- this is not a test of its music");
     if (!s || s.notes < 200)
-        fail(`${s ? s.notes : 0} notes in ${seconds}s. Doom's title music `
+        fail(`${s ? s.notes : 0} notes in ${MUSIC_SECS}s of music. Doom's `
+             + `title music `
              + "is over a thousand; this is silence or a trickle. Check "
              + "music_card = 6 in BOOM.CFG.");
     if (s && s.dropped)
@@ -120,4 +162,7 @@ setTimeout(async () => {
     console.log(`  wrote ${wavOut}`);
 
     process.exit(bad ? 1 : 0);
-}, seconds * 1000);
+};
+
+await collect();
+await judge();

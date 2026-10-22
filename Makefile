@@ -455,7 +455,14 @@ $(BUILD)/.v86-fetched:
 
 # The data image carries DOSYPP.EXE, so it depends on having one: an image
 # built from a stale binary is the same failure as a stale binary.
-images: $(BUILD)/.v86-fetched dos-any
+# The module and MIDITEST are staged by mkv86img.sh and are part of the
+# demo -- GO.BAT plays the one and AUTOMIDI.BAT runs the other -- so they
+# are built here rather than left to be "absent, see docs/V86.md". On a
+# fresh clone they were absent, and the image came out silent with no
+# MIDI program on it: test-v86-sound then reported "the card took only 0
+# frames" and test-v86-midi refused the image, neither of which is what
+# was actually wrong.
+images: $(BUILD)/.v86-fetched dos-any dos-midi-any $(MODULES)
 	./tools/mkv86img.sh
 
 relay:
@@ -640,8 +647,14 @@ warez: tthof atmos
 
 # What gets published to GitHub Pages: the page, the engine, the images,
 # and the two scripts that give the browser a network. See docs/PAGES.md.
-pages: images warez
+pages: images warez web/vendor/synth/spessasynth_core.js
 	./tools/mkpages.sh
+
+# The vendored synthesiser, as a file rather than a phony target: `make
+# pages` has to be able to depend on it. (`make synth` above is the
+# spelling to type.)
+web/vendor/synth/spessasynth_core.js:
+	./tools/fetchsynth.sh
 
 test-pages: pages
 	./test/web/run-pages-test.sh

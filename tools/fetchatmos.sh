@@ -32,6 +32,21 @@ DEST="${ATMOS_DIR:-$ROOT/build/atmos}"
 CACHE="${DOSYPP_CACHE:-$ROOT/.cache}"
 BASE="${FREEDOS_BASE:-https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.3}"
 
+# Somewhere else to look when the first place does not have it. ibiblio is
+# the only host for the per-package FreeDOS repositories -- there is no
+# second mirror -- and it answers 503 for the whole subtree under load,
+# which is enough to stop a CI run that has done nothing wrong. So a copy
+# you control can go first and ibiblio can be the fallback:
+#
+#   FREEDOS_BASE=https://github.com/<org>/<repo>/releases/download/<tag> \
+#   FREEDOS_BASE_ALT=https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.3 \
+#       ./tools/fetchatmos.sh
+#
+# tools/pubpackages.sh publishes such a copy. Every file is still checked
+# against the sha256 pinned below, wherever it came from, so a mirror is
+# not something that has to be trusted.
+BASE_ALT="${FREEDOS_BASE_ALT:-}"
+
 # repo/file  area-in-the-share  sha256  what it is
 #
 # The areas are where a 1994 board would have filed them, because that is
@@ -43,7 +58,7 @@ BASE="${FREEDOS_BASE:-https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/r
 # peers as software. Update a hash deliberately when you mean to update a
 # package -- FREEDOS_ALLOW_UNPINNED=1 skips the check for a one-off.
 SET="
-games/freedoom.zip     WAREZ/GAMES  b0352ccc4e7f85b39651c38f8656396bd537bdcd3cca1127dbf06e3e871ed720  FreeDoom, a free Doom-compatible game
+https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip WAREZ/GAMES  3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59  as=FREEDOOM.ZIP Freedoom 0.13.0, from the project's own release
 games/boom.zip         WAREZ/GAMES  fb54217f62483a0a4e10b5d19132b70ebdffddf64fae465e5d6eb4880da2f5c0  Boom, a Bomberman-style game
 games/gnuchess.zip     WAREZ/GAMES  70a2c893b5bfae680b4b3181500ceb88ea2d501488488f38d4e83f1502c186e8  GNU Chess
 games/eliza.zip        WAREZ/GAMES  fd4bbca1c1eacd97661e5880fedcc767aa7faea28e458c31b92cbf4765bcfad4  Eliza, the 1966 chatbot
@@ -63,23 +78,77 @@ mkdir -p "$CACHE" "$DEST"
 
 got=0
 bad=0
+netfail=0
 total=0
 printf '%-18s %-13s %s\n' FILE AREA SIZE
 
-while read -r path area want_sha _rest; do
+while read -r path area want_sha rest; do
     [ -z "$path" ] && continue
     name="$(basename "$path")"
     out="$CACHE/$name"
+
+    # A row whose first field is a URL comes from its own project rather
+    # than from the FreeDOS repositories, and says what to store it as:
+    # "as=FREEDOOM.ZIP" keeps the share 8.3, which the demo's disk needs
+    # because long filename support is off there on purpose.
+    store="$(echo "$name" | tr 'a-z' 'A-Z')"
+    case "$rest" in
+        as=*) store="${rest%% *}"; store="${store#as=}" ;;
+    esac
 
     if [ ! -f "$out" ]; then
         # --fail so a 404 does not leave an HTML error page named .zip,
         # which is the failure mode that wastes an afternoon: the file
         # exists, has the right name, and is not a zip.
-        curl -fsSL -m 300 -o "$out.part" "$BASE/$path" || {
-            echo "could not fetch $BASE/$path" >&2
-            rm -f "$out.part"
+        #
+        # Three attempts, backing off: ibiblio is the only place these
+        # come from -- FreeDOS has no second mirror for the per-package
+        # repositories -- and it answers 503 under load. A single attempt
+        # turns a busy minute into a failed build.
+        # Two layouts at each base: the repository's own (games/boom.zip)
+        # and a flat one (boom.zip), because a GitHub release asset has no
+        # directories. A 404 on one is not an error, it is the other
+        # layout; only running out of candidates is an error.
+        case "$path" in
+            http://*|https://*)
+                # Its own project publishes it; there is nothing to mirror
+                # and no second layout to guess.
+                urls="$path" ;;
+            *)
+                urls="$BASE/$path $BASE/$name"
+                [ -n "$BASE_ALT" ] &&
+                    urls="$urls $BASE_ALT/$path $BASE_ALT/$name" ;;
+        esac
+
+        fetched=0
+        for url in $urls; do
+            for attempt in 1 2 3; do
+                # The status code, not just success or failure: a 404 means
+                # "wrong layout, try the next URL" and retrying it three
+                # times with backoff wastes nine seconds per package. A 503
+                # -- which is what ibiblio does under load -- means "ask
+                # again", and a single attempt there turns a busy minute
+                # into a failed build.
+                code=$(curl -fsSL -m 300 -o "$out.part" \
+                            -w '%{http_code}' "$url" 2>/dev/null) || true
+                if [ "${code:-000}" = "200" ] && [ -s "$out.part" ]; then
+                    fetched=1
+                    break
+                fi
+                rm -f "$out.part"
+                case "${code:-000}" in
+                    404|403|410) break ;;    # not here; next candidate
+                esac
+                [ "$attempt" -lt 3 ] && sleep $((attempt * 3))
+            done
+            [ "$fetched" = 1 ] && break
+        done
+        if [ "$fetched" != 1 ]; then
+            echo "could not fetch $name from any of:" >&2
+            for url in $urls; do echo "    $url" >&2; done
+            netfail=$((netfail + 1))
             continue
-        }
+        fi
         mv "$out.part" "$out"
     fi
 
@@ -113,7 +182,7 @@ while read -r path area want_sha _rest; do
     fi
 
     mkdir -p "$DEST/$area"
-    cp "$out" "$DEST/$area/$(echo "$name" | tr 'a-z' 'A-Z')"
+    cp "$out" "$DEST/$area/$store"
     sz=$(wc -c < "$out" | tr -d ' ')
     total=$((total + sz))
     got=$((got + 1))
@@ -127,6 +196,43 @@ if [ "$bad" -gt 0 ]; then
     echo "$bad package(s) refused on a hash mismatch -- see above" >&2
     exit 1
 fi
+
+# Nothing fetched is a failure, and it has to be said here. This used to
+# print "cached in ..." and exit 0, leaving a directory containing only
+# the README below -- so the first thing anybody saw was mkshare.sh three
+# steps later saying "nothing small enough to share", which describes the
+# symptom and not the cause. ibiblio was returning 503 for the whole
+# FreeDOS subtree, and the CI log said nothing about it.
+if [ "$got" -eq 0 ]; then
+    echo >&2
+    echo "no packages were fetched at all." >&2
+    echo "  source: $BASE" >&2
+    [ -n "$BASE_ALT" ] && echo "  fallback: $BASE_ALT" >&2
+    if [ "$netfail" -gt 0 ]; then
+        echo "  $netfail download(s) failed after three attempts each." >&2
+        case "$BASE$BASE_ALT" in
+            *ibiblio*)
+                echo "  ibiblio hosts these and has no mirror for the" >&2
+                echo "  per-package repositories, so an outage there stops" >&2
+                echo "  this script. Try again later, or publish a copy" >&2
+                echo "  with tools/pubpackages.sh and point FREEDOS_BASE" >&2
+                echo "  at it." >&2
+                ;;
+            *)
+                echo "  Nothing was reachable at the base(s) above. These" >&2
+                echo "  are the FreeDOS 1.3 repositories; unset" >&2
+                echo "  FREEDOS_BASE to use ibiblio directly." >&2
+                ;;
+        esac
+    fi
+    exit 1
+fi
+
+if [ "$netfail" -gt 0 ]; then
+    echo "$netfail package(s) could not be downloaded -- see above" >&2
+    exit 1
+fi
+
 echo "cached in $CACHE -- delete it to refetch"
 
 # A note that travels with the files, because somebody will find this

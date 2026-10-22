@@ -8,12 +8,23 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="$(mktemp -d)"
 HUB_PORT=${SETUP_HUB_PORT:-24991}
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 cleanup() {
     [ -n "${HUB_PID:-}" ] && kill "$HUB_PID" 2>/dev/null
@@ -55,7 +66,12 @@ DOWN=$'\033[B'
 #   S                                -> write the file
 echo "driving the setup door..."
 (
-    sleep 5
+    # Anchored on the connection rather than on process start, then given
+    # the same settle the door always needed: "connected" is logged within
+    # a second, and the first keys used to arrive at five. Pressing at one
+    # second saved nothing and edited nothing -- the door had not drawn.
+    await_line "$RUN/run.log" "connected" || true
+    sleep 4
     printf '%s%s' "$DOWN" "$DOWN"; sleep 1
     printf '\r';                    sleep 1
     printf 'After\r';               sleep 1
@@ -113,5 +129,6 @@ if [ "$ok" = 1 ]; then
     echo "SETUP OK: edits reach the file and come back on the next run."
     exit 0
 fi
+echo "--- what failed ---$FAILURES" >&2
 echo "SETUP FAILED" >&2
 exit 1

@@ -18,8 +18,13 @@
 # could not write into it.
 name: host tier
 
+# push on the trunk only, and pull_request for everything else. With both
+# triggers matching the same branch, every pull request runs twice -- once
+# for the push that updated its head branch and once for the review -- and
+# nothing is learned the second time.
 on:
   push:
+    branches: [main, master]
   pull_request:
   workflow_dispatch:
 
@@ -44,6 +49,25 @@ jobs:
       # ours against, and the transfer rigs verify downloads with it. Its
       # absence would not fail those rigs -- they skip what they cannot
       # check -- which is exactly why it is installed rather than hoped for.
+      # The workflow files themselves. Three of them now set environment
+      # and matrix things, and an `env:` left with nothing under it parses
+      # as valid YAML and is rejected by GitHub only once pushed -- which
+      # costs a round trip to find out. actionlint says so locally.
+      - name: Lint the workflows
+        run: |
+          # The repository, not the workflow directory, and no glob:
+          # actionlint finds .github/workflows itself, and a /wf/*.yml
+          # would be expanded by this shell -- where that path does not
+          # exist -- and handed to the container literally.
+          # Pinned by digest, not :latest. An image that moves under you
+          # fails a build on a day nothing changed, and a linter is the
+          # worst thing to have do that: every run would be red while the
+          # code is fine. This digest is actionlint 1.7.12, and it is the
+          # multi-arch index, so it resolves on amd64 runners as well as
+          # on an arm64 laptop. Bump it deliberately.
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -no-color
+
       - name: Tools
         run: |
           sudo apt-get update
@@ -68,6 +92,11 @@ jobs:
       - name: Sweep the host tier
         env:
           SWEEP_KEEP: "1"          # keep passing logs too, for the artifact
+          # See the note in web.yml: the FreeDOS packages come from a
+          # release on this repository first, ibiblio second. test-attic
+          # shares real software, so this tier needs them too.
+          FREEDOS_BASE: https://github.com/${{ github.repository }}/releases/download/freedos-1.3-packages
+          FREEDOS_BASE_ALT: https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.3
         run: ./tools/sweep.sh host
 
       # The logs of every gate, pass or fail. A failure here is on somebody

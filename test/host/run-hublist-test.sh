@@ -11,6 +11,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="$(mktemp -d)"
 HUB_A=${HUBLIST_HUB_A:-25001}
@@ -18,7 +19,17 @@ HUB_B=${HUBLIST_HUB_B:-25002}
 WEB_PORT=${HUBLIST_WEB_PORT:-25003}
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 cleanup() {
     [ -n "${A_PID:-}" ] && kill "$A_PID" 2>/dev/null
@@ -90,8 +101,12 @@ echo "hubs on $HUB_A and $HUB_B, list served on $WEB_PORT"
 # only usable one in it.
 echo "fetching the list and switching hubs..."
 (
-    sleep 5;  printf 'F'
-    sleep 6;  printf '\r'
+    # F once the client is on a hub, ENTER once the list has actually been
+    # served: the web server's own access log says when that happened.
+    await_line "$RUN/run.log" "connected"              || true
+    sleep 2; printf 'F'
+    await_line "$RUN/web.log" "GET /hublist.xml.bz2"    || true
+    sleep 0.5; printf '\r'
     sleep 10
 ) | ( cd "$RUN/node" && exec "$CLIENT" -c "$RUN/node/node.ini" \
         --screenshot "$RUN/shot.txt" --null-display --door 10 \
@@ -136,5 +151,6 @@ if [ "$ok" = 1 ]; then
 fi
 echo "--- client output ---" >&2
 tail -15 "$RUN/run.log" >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "HUBLIST FAILED" >&2
 exit 1

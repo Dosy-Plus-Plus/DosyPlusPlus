@@ -16,6 +16,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$ROOT/test/host/hublib.sh"   # await_line
 CLIENT="$ROOT/build/host/dosypp"
 RUN="$(mktemp -d)"
 HUB_A=${FAVS_HUB_A:-25021}
@@ -23,7 +24,17 @@ HUB_B=${FAVS_HUB_B:-25022}
 HUB_B_PASS=${FAVS_HUB_B_PASS:-correct-horse}
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 cleanup() {
     [ -n "${A_PID:-}" ] && kill "$A_PID" 2>/dev/null
@@ -80,7 +91,8 @@ echo "hub A on $HUB_A (open), hub B on $HUB_B (password required)"
 # ENTER on the favourite, which is the only one.
 echo "connecting to the favourite..."
 (
-    sleep 5;  printf '\r'
+    await_line "$RUN/run.log" "connected" || true
+    sleep 2; printf '\r'
     sleep 10
 ) | ( cd "$RUN/node" && exec "$CLIENT" -c "$RUN/node/node.ini" \
         --screenshot "$RUN/shot.txt" --null-display --door 10 \
@@ -156,7 +168,8 @@ sound = no
 EOF
 
 (
-    sleep 5;  printf 'A'
+    await_line "$RUN/run3.log" "connected" || true
+    sleep 2; printf 'A'
     sleep 4
 ) | ( cd "$RUN/fresh" && exec "$CLIENT" -c "$RUN/fresh/node.ini" \
         --screenshot "$RUN/shot3.txt" --null-display --door 10 \
@@ -191,5 +204,6 @@ if [ "$ok" = 1 ]; then
 fi
 echo "--- client output ---" >&2
 tail -12 "$RUN/run.log" >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "FAVS FAILED" >&2
 exit 1

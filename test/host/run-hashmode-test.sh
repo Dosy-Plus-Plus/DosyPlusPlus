@@ -81,7 +81,17 @@ hub_told_share() {
 }
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 echo "--- hash = manual, nobody presses anything ---"
 run_case manual Deferred "" 8
@@ -123,5 +133,6 @@ if [ "$ok" = 1 ]; then
     echo "HASH MODE OK: manual defers and stays quiet, H starts it, auto still hashes."
     exit 0
 fi
+echo "--- what failed ---$FAILURES" >&2
 echo "HASH MODE FAILED" >&2
 exit 1

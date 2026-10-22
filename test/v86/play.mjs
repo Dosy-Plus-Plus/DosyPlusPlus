@@ -90,19 +90,60 @@ emulator.add_listener("screen-set-size", (a) => {
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const type = async (text, wait) => {
-    emulator.keyboard_send_text(text, 80);
-    await sleep(wait);
+
+/* Wait for the screen to say something, rather than for a number of
+   seconds to have passed.
+ *
+ * This rig used to boot for 32 seconds, type ENTER, wait 25, type /quit,
+ * wait 12, and so on -- 74 seconds of guesses tuned on one machine. The
+ * screen is already being reassembled here from v86's screen-put-char
+ * events, so every step has something observable to wait for: the handle
+ * prompt, the client's own header, a DOS prompt in the right directory.
+ *
+ * A wait that expires throws rather than typing into whatever is there:
+ * sending PLAY BLKDROP to a machine still showing a login prompt produces
+ * a failure about the game that is really a failure about the boot. */
+const waitForScreen = async (what, re, limitMs) => {
+    const started = Date.now();
+    while (Date.now() - started < limitMs) {
+        if (re.test(screenText()))
+            return (Date.now() - started) / 1000;
+        await sleep(200);
+    }
+    console.log("\n--- the screen, when the wait gave up ---");
+    console.log(screenText() || "(blank)");
+    throw new Error(`timed out after ${limitMs / 1000}s waiting for ${what}`);
 };
 
+const type = async (text) => { emulator.keyboard_send_text(text, 80); };
+
+const startedAt = Date.now();
 console.log("[harness] booting, then playing a game the way a visitor would");
 
-await sleep(32000);
-await type("\n", 25000);            /* keep the default handle         */
-await type("/quit\n", 12000);       /* out to a DOS prompt             */
+/* The first-run prompt: "HANDLE [WebNode]:" -- src/main.c prints it. */
+let t = await waitForScreen("the handle prompt", /HANDLE \[/, 90000);
+console.log(`[harness] handle prompt after ${t}s`);
+await type("\n");                   /* keep the default handle         */
+
+/* The client is up once its own header is drawn. */
+t = await waitForScreen("the client's screen", /NODES ONLINE/, 60000);
+console.log(`[harness] the client is up after ${t}s`);
+await type("/quit\n");              /* out to a DOS prompt             */
+
+/* Back at DOS. GO.BAT leaves us on C:, so the prompt says so. */
+t = await waitForScreen("a DOS prompt", /C:\\[^>]*>/, 30000);
+console.log(`[harness] back at DOS after ${t}s`);
 rows.length = 0;                    /* forget the client's screen      */
-await type("CD \\DL\\WAREZ\\GAMES\n", 5000);
-await type("PLAY BLKDROP\n", seconds * 1000 - 74000);
+
+await type("CD \\DL\\WAREZ\\GAMES\n");
+t = await waitForScreen("the games directory", /GAMES>/, 20000);
+console.log(`[harness] in the share after ${t}s`);
+
+await type("PLAY BLKDROP\n");
+/* Nothing to wait for now: what happens next is a game taking the
+   display, which the video-mode listener above is watching for. The run
+   length is what the caller asked for, less what the walk has used. */
+await sleep(Math.max(5000, seconds * 1000 - (Date.now() - startedAt)));
 
 const text = screenText();
 console.log("\n--- the screen ---");

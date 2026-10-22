@@ -112,18 +112,48 @@ fi
 #   DOWN   past "apps" to MAZERUN2.ZIP
 #   SPACE  queue it
 #
-# The sleeps are generous: this is driving a UI through a pipe, and a tight
-# sequence would be testing the timing rather than the feature.
+# Each key waits for the listing it acts on to have arrived, rather than
+# for a number of seconds to have passed. This used to be four sleeps
+# chosen to be generous on this machine; on a slower, busier one -- a
+# two-core CI runner -- the first ENTER landed before the root listing did,
+# nothing descended, and the failure read as "navigation did not work".
+# --peer-trace puts the wire in the log, so the arrival of each list is an
+# observable event and the rig can wait for the real thing.
 echo "fetching the list and walking it..."
 (
-    sleep 8;  printf '\r'
-    sleep 3;  printf '\r'
-    sleep 3;  printf '\033[B'
-    sleep 2;  printf ' '
+    # Each ENTER descends, and descending asks the peer for that
+    # directory -- so each key's own effect is on the wire and can be
+    # waited for instead of assumed. Pressed once, then waited on:
+    #
+    #   * waiting for the *previous* listing and pressing 0.3s later says
+    #     when the UI could act, not that it did. On a CI runner it did
+    #     not, and the rig blamed the file it ended up queueing.
+    #   * resending the key was worse. If the first ENTER landed but its
+    #     request had not reached the log yet, the resend descended again
+    #     -- into apps/ -- and the queued file really was the wrong one.
+    #
+    # So: a settle long enough for the door to draw, one press, and a
+    # generous wait for the request it causes.
+    await_line "$RUN/dn.log" "CSND list / 0" || true
+    sleep 2;   printf '\r'
+    await_line "$RUN/dn.log" "CGET list /up/" 20 ||
+        echo "  (never descended into up)" >&2
+    sleep 1;   printf '\r'
+    await_line "$RUN/dn.log" "CGET list /up/warez/" 20 ||
+        echo "  (never descended into warez)" >&2
+
+    # DOWN only moves the highlight, so there is nothing to confirm and
+    # nothing that could be safely resent: give the listing time to draw,
+    # move, then queue -- and confirm the queue by the transfer it starts.
+    await_line "$RUN/dn.log" "CSND list /up/warez/ 0" || true
+    sleep 3;   printf '\033[B'
+    sleep 1;   printf ' '
+    await_line "$RUN/dn.log" "CGET (file|tthl)" 20 ||
+        echo "  (SPACE queued nothing)" >&2
     sleep 20
 ) | ( cd "$RUN/down" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn.txt" --null-display --door 8 --peer-trace \
-    --browse Sharer --run-secs 32 127.0.0.1 ) > "$RUN/dn.log" 2>&1
+    --browse Sharer --run-secs 45 127.0.0.1 ) > "$RUN/dn.log" 2>&1
 
 echo
 echo "--- the browse door ---"
@@ -131,7 +161,13 @@ sed -n '2,16p' "$RUN/dn.txt" 2>/dev/null || echo "(no screenshot)"
 echo "-----------------------"
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 # ---- pass 1 asked for partial lists, and got them
 grep -q "CGET list /" "$RUN/dn.log" ||
@@ -186,7 +222,9 @@ else
         if [ "$WANT" = "$HAVE" ]; then
             echo "  and its hash matches the original"
         else
-            fail "the file queued from the browse door is not the right file"
+            fail "the file queued from the browse door is not the right
+    file: got $GOT ($HAVE), wanted MAZERUN2.ZIP ($WANT). The door was on
+    the wrong row, or on the wrong directory."
         fi
     fi
 fi
@@ -209,9 +247,20 @@ for _ in $(seq 60); do
 done
 
 (
-    sleep 10; printf '\r'
-    sleep 3;  printf '\r'
-    sleep 12
+    # No listing arrives here: this sharer refuses partial lists, so the
+    # client falls back to fetching files.xml.bz2 whole. That transfer is
+    # the event to wait for -- waiting for a CSND list would time out by
+    # design and put the keys in late.
+    # Anchored on the transfer, then paced: with the whole list in hand
+    # the tree is local, so descending causes no wire traffic and there is
+    # nothing to confirm. The transfer line only says the response header
+    # arrived -- the bz2 still has to be decompressed and parsed -- so the
+    # two seconds after it are not padding, and cutting them to half a
+    # second is what made this fail on a slower machine.
+    await_line "$RUN/dn2.log" "CSND file files.xml.bz2" || true
+    sleep 2; printf '\r'
+    sleep 2; printf '\r'
+    sleep 10
 ) | ( cd "$RUN/down2" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn2.txt" --null-display --door 8 --peer-trace \
     --browse Sharer --run-secs 26 127.0.0.1 ) > "$RUN/dn2.log" 2>&1
@@ -250,5 +299,10 @@ fi
 
 echo "--- downloader output ---" >&2
 tail -15 "$RUN/dn.log" >&2
+
+# Last, because the sweep shows the tail of this log and nothing else: a
+# run that said only "BROWSE FAILED" cost two people a guessing game about
+# which of twenty checks it was.
+echo "--- what failed ---$FAILURES" >&2
 echo "BROWSE FAILED" >&2
 exit 1

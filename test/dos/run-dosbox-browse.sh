@@ -155,7 +155,17 @@ sed -n '2,16p' "$RUNDIR/SHOT.TXT" 2>/dev/null || echo "(no screenshot)"
 echo "-------------------------------"
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 # Partial lists are what the client asks for: the root one level deep, and
 # then a directory when it is opened. On DOS that is the point of them --
@@ -204,5 +214,6 @@ fi
 
 echo "--- DOS output ---" >&2
 cat "$RUNDIR/RUN.TXT" 2>/dev/null >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "BROWSE FAILED on DOS" >&2
 exit 1

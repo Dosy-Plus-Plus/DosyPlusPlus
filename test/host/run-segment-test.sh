@@ -24,13 +24,29 @@ RUN="$(mktemp -d)"
 # Ports from the kernel rather than two numbers that looked free: this rig
 # once spent a whole run talking to somebody else's hub on 24971 and
 # reported the feature broken.
+# How long the collector runs. It is judged on what it managed in that
+# time, so a machine slow enough not to finish fails checks about
+# segmenting that are really about the clock. 90, not 60, because being
+# generous costs half a minute on a fast machine and a red build on a
+# slow one.
+COLLECT_SECS=${SEG_COLLECT_SECS:-90}
 HUB_PORT=${SEG_HUB_PORT:-$(free_port)}
 PEER_A=${SEG_PEER_A:-$(free_port)}
 PEER_B=${SEG_PEER_B:-$(free_port)}
 SIZE=${SEG_SIZE:-300000}
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 cleanup() {
     [ -n "${HUB_PID:-}" ] && kill "$HUB_PID" 2>/dev/null
@@ -104,7 +120,7 @@ grep -q "listening on port $PEER_B" "$RUN/b.log" || fail "source B is not listen
 echo "both sources have hashed and announced; collecting..."
 ( cd "$RUN/down" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn.txt" --null-display --door 4 --peer-trace \
-    --search BIGFILE --queue --run-secs 60 127.0.0.1 ) \
+    --search BIGFILE --queue --run-secs "$COLLECT_SECS" 127.0.0.1 ) \
     > "$RUN/dn.log" 2>&1 < /dev/null
 
 echo
@@ -166,5 +182,6 @@ fi
 
 echo "--- collector output ---" >&2
 grep -E "^peer|cannot|failed" "$RUN/dn.log" | tail -20 >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "SEGMENTS FAILED" >&2
 exit 1
