@@ -14,6 +14,12 @@
 
 An ADC (DC++) client for MS-DOS with a 1994-era BBS interface.
 
+[![Try it in your browser](https://img.shields.io/badge/%E2%96%B6%20TRY%20IT%20IN%20YOUR%20BROWSER-no%20install-2ea043?style=for-the-badge&labelColor=0b0b0b)](https://dosy-plus-plus.github.io/DosyPlusPlus/)
+
+**[https://dosy-plus-plus.github.io/DosyPlusPlus/](https://dosy-plus-plus.github.io/DosyPlusPlus/)** — it boots FreeDOS in a
+tab and runs the same DOS binary as real hardware, with a hub and a share
+already there. Nothing to install, and nothing it connects out to.
+
 Chat, search, browse, download and upload against a real ADC hub, from a
 386/486 — or a browser tab. 32-bit protected mode via DJGPP, TCP/IP via
 Watt-32 over a DOS packet driver, CP437 drawn straight into video memory.
