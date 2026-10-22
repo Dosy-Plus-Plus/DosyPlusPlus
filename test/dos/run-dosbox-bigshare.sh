@@ -45,7 +45,17 @@ for f in DOSYPP.EXE CWSDPMI.EXE NE2000.COM; do
 done
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 cleanup() {
     [ -n "${HUB_PID:-}" ] && kill "$HUB_PID" 2>/dev/null
@@ -214,5 +224,6 @@ if [ "$ok" = 1 ]; then
     echo "machine where long is 32 bits, with no hashing in the guest."
     exit 0
 fi
+echo "--- what failed ---$FAILURES" >&2
 echo "BIGSHARE FAILED on DOS" >&2
 exit 1

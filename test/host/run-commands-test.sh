@@ -33,7 +33,17 @@ PORT_A=${CMD_PORT_A:-$(free_port)}
 PORT_B=${CMD_PORT_B:-$(free_port)}
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 cleanup() {
     [ -n "${HUB_A:-}" ] && kill "$HUB_A" 2>/dev/null
@@ -192,5 +202,6 @@ if [ "$ok" = 1 ]; then
     echo "dial that does not answer keeps the music playing."
     exit 0
 fi
+echo "--- what failed ---$FAILURES" >&2
 echo "COMMANDS FAILED"
 exit 1

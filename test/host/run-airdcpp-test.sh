@@ -70,7 +70,17 @@ docker image inspect "$IMAGE" > /dev/null 2>&1 || {
     docker pull --platform linux/amd64 "$IMAGE" || exit 1; }
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 mkdir -p "$RUN/air/cfg" "$RUN/air/share/warez" "$RUN/air/dl" \
          "$RUN/dosy/share/warez" "$RUN/dosy/dl"
@@ -486,5 +496,6 @@ fi
 
 echo "--- DOSy++ output ---" >&2
 tail -25 "$RUN/dosy/run.log" >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "AIRDCPP FAILED" >&2
 exit 1

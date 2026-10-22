@@ -122,29 +122,38 @@ fi
 echo "fetching the list and walking it..."
 (
     # Each ENTER descends, and descending asks the peer for that
-    # directory -- so the key's own effect is on the wire and can be
-    # confirmed rather than assumed. The first version of this waited for
-    # the *previous* listing and pressed 0.3s later, which is a statement
-    # about when the UI could act, not about whether it did; on a CI
-    # runner it did not, and the rig blamed the file it ended up queueing.
+    # directory -- so each key's own effect is on the wire and can be
+    # waited for instead of assumed. Pressed once, then waited on:
+    #
+    #   * waiting for the *previous* listing and pressing 0.3s later says
+    #     when the UI could act, not that it did. On a CI runner it did
+    #     not, and the rig blamed the file it ended up queueing.
+    #   * resending the key was worse. If the first ENTER landed but its
+    #     request had not reached the log yet, the resend descended again
+    #     -- into apps/ -- and the queued file really was the wrong one.
+    #
+    # So: a settle long enough for the door to draw, one press, and a
+    # generous wait for the request it causes.
     await_line "$RUN/dn.log" "CSND list / 0" || true
-    send_until "$RUN/dn.log" "\r" "CGET list /up/" ||
+    sleep 2;   printf '\r'
+    await_line "$RUN/dn.log" "CGET list /up/" 20 ||
         echo "  (never descended into up)" >&2
-    send_until "$RUN/dn.log" "\r" "CGET list /up/warez/" ||
+    sleep 1;   printf '\r'
+    await_line "$RUN/dn.log" "CGET list /up/warez/" 20 ||
         echo "  (never descended into warez)" >&2
 
     # DOWN only moves the highlight, so there is nothing to confirm and
     # nothing that could be safely resent: give the listing time to draw,
     # move, then queue -- and confirm the queue by the transfer it starts.
     await_line "$RUN/dn.log" "CSND list /up/warez/ 0" || true
-    sleep 2;   printf '\033[B'
-    sleep 0.5
-    send_until "$RUN/dn.log" " " "CGET (file|tthl)" ||
+    sleep 3;   printf '\033[B'
+    sleep 1;   printf ' '
+    await_line "$RUN/dn.log" "CGET (file|tthl)" 20 ||
         echo "  (SPACE queued nothing)" >&2
     sleep 20
 ) | ( cd "$RUN/down" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn.txt" --null-display --door 8 --peer-trace \
-    --browse Sharer --run-secs 32 127.0.0.1 ) > "$RUN/dn.log" 2>&1
+    --browse Sharer --run-secs 45 127.0.0.1 ) > "$RUN/dn.log" 2>&1
 
 echo
 echo "--- the browse door ---"
@@ -213,7 +222,9 @@ else
         if [ "$WANT" = "$HAVE" ]; then
             echo "  and its hash matches the original"
         else
-            fail "the file queued from the browse door is not the right file"
+            fail "the file queued from the browse door is not the right
+    file: got $GOT ($HAVE), wanted MAZERUN2.ZIP ($WANT). The door was on
+    the wrong row, or on the wrong directory."
         fi
     fi
 fi

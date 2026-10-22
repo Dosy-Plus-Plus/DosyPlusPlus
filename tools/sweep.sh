@@ -58,9 +58,21 @@ run_one() {
         printf 'FAIL %3ds  %s\n' $(( $(date +%s) - start )) "$log"
         fail=$((fail + 1))
         failed="$failed $t"
-        # The last few lines now, because a sweep is long and scrolling
-        # back to find out what broke is time nobody has.
-        sed 's/^/      /' <<< "$(tail -4 "$log")"
+        # What broke, now, because a sweep is long and scrolling back to
+        # find out is time nobody has.
+        #
+        # The rigs collect their failed checks and print them under
+        # "--- what failed ---" just before their verdict, so prefer that
+        # over the tail: a rig that kills background processes on the way
+        # out ends its log with four lines of the shell saying
+        # "Terminated", which pushed the useful part out of view.
+        if grep -q -- "--- what failed ---" "$log"; then
+            sed -n '/--- what failed ---/,$p' "$log" |
+                grep -vE "Terminated|run dir kept|^make(\[|:)" |
+                head -8 | sed 's/^/      /'
+        else
+            sed 's/^/      /' <<< "$(tail -4 "$log")"
+        fi
     fi
 }
 

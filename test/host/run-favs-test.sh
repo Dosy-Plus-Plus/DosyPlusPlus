@@ -24,7 +24,17 @@ HUB_B=${FAVS_HUB_B:-25022}
 HUB_B_PASS=${FAVS_HUB_B_PASS:-correct-horse}
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 cleanup() {
     [ -n "${A_PID:-}" ] && kill "$A_PID" 2>/dev/null
@@ -194,5 +204,6 @@ if [ "$ok" = 1 ]; then
 fi
 echo "--- client output ---" >&2
 tail -12 "$RUN/run.log" >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "FAVS FAILED" >&2
 exit 1

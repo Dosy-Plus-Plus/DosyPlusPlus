@@ -169,7 +169,17 @@ SDL_VIDEODRIVER=dummy perl -e 'alarm 420; exec @ARGV' \
     > "$RUNDIR/dosbox3.log" 2>&1
 
 ok=1
-fail() { echo "FAIL: $*" >&2; ok=0; }
+# Collected as well as printed: the sweep shows only the tail of a log,
+# and these lines are often a screen or two above it. The list is
+# reprinted immediately before the verdict, so a red run in CI says which
+# check failed instead of only that something did.
+FAILURES=""
+fail() {
+    echo "FAIL: $*" >&2
+    FAILURES="$FAILURES
+  - $*"
+    ok=0
+}
 
 echo
 echo "--- what the client reported ---"
@@ -367,5 +377,6 @@ echo "--- DOS output ---" >&2
 cat "$RUNDIR/RUN.TXT" 2>/dev/null >&2
 echo "--- no-card run ---" >&2
 cat "$RUNDIR/NOSB.TXT" 2>/dev/null >&2
+echo "--- what failed ---$FAILURES" >&2
 echo "MUSIC FAILED on DOS" >&2
 exit 1
