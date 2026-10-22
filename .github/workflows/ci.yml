@@ -59,8 +59,14 @@ jobs:
           # actionlint finds .github/workflows itself, and a /wf/*.yml
           # would be expanded by this shell -- where that path does not
           # exist -- and handed to the container literally.
+          # Pinned by digest, not :latest. An image that moves under you
+          # fails a build on a day nothing changed, and a linter is the
+          # worst thing to have do that: every run would be red while the
+          # code is fine. This digest is actionlint 1.7.12, and it is the
+          # multi-arch index, so it resolves on amd64 runners as well as
+          # on an arm64 laptop. Bump it deliberately.
           docker run --rm -v "$PWD:/repo:ro" -w /repo \
-            rhysd/actionlint:latest -no-color
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -no-color
 
       - name: Tools
         run: |
