@@ -80,3 +80,23 @@ await_line() {
     echo "TIMED OUT after ${limit}s waiting in $(basename "$log"): $pat" >&2
     return 1
 }
+
+# send_until <logfile> <keys> <extended-regex> [tries] [seconds-each]
+#
+# Send a keystroke and then wait for the thing it is supposed to cause.
+# Waiting for a prior event says the UI *could* act on the key; this says
+# it *did*. Use it only where the key has an observable effect -- a
+# request on the wire, a file appearing -- and never for one that only
+# moves a highlight, because a resend would move it twice.
+send_until() {
+    local log="$1" keys="$2" pat="$3" tries="${4:-3}" each="${5:-6}" i
+    for i in $(seq "$tries"); do
+        # %b, not %s: callers pass "\r" and "\033[B", and %s would send a
+        # backslash and a letter -- which the UI ignores, so the rig then
+        # reports the feature broken while never having pressed a key.
+        printf '%b' "$keys"
+        await_line "$log" "$pat" "$each" && return 0
+        echo "  (no $pat yet; sending again, attempt $((i + 1)))" >&2
+    done
+    return 1
+}

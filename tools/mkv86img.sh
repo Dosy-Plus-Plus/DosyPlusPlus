@@ -41,7 +41,17 @@ DATA_MB="${DATA_MB:-128}"
 # FreeDOS 1.3 does not publish a standalone boot floppy any more; the 1.44MB
 # bootable image lives inside the Floppy Edition archive as 144m/x86BOOT.img.
 FREEDOS_URL="${FREEDOS_URL:-https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.3/official/FD13-FloppyEdition.zip}"
+# Somewhere else to look. ibiblio is the only upstream and answers 503 for
+# the whole FreeDOS subtree under load, which stops this script dead -- the
+# demo has no boot disk without it. Set FREEDOS_URL to a copy you control
+# and leave this pointing at upstream; tools/pubpackages.sh publishes such
+# a copy alongside the packages.
+FREEDOS_URL_ALT="${FREEDOS_URL_ALT:-https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.3/official/FD13-FloppyEdition.zip}"
 FREEDOS_MEMBER="144m/x86BOOT.img"
+# The boot disk of the demo, so it is checked like everything else that is
+# fetched. FREEDOS_ALLOW_UNPINNED=1 for a one-off if FreeDOS re-releases
+# the archive; then update this.
+FREEDOS_SHA256="${FREEDOS_SHA256:-75a4e11a7fce6f124e20927b3022b4b715a2a3f7324c5f5bfea42d90d80eb072}"
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -58,7 +68,48 @@ export MTOOLS_SKIP_CHECK=1
 if [ ! -f "$CACHE/x86BOOT.img" ]; then
     if [ ! -f "$CACHE/FD13-FloppyEdition.zip" ]; then
         echo "fetching FreeDOS 1.3 Floppy Edition (~21MB)..."
-        curl -fsSL "$FREEDOS_URL" -o "$CACHE/FD13-FloppyEdition.zip.part"
+        got=0
+        for url in "$FREEDOS_URL" "$FREEDOS_URL_ALT"; do
+            [ -n "$url" ] || continue
+            for attempt in 1 2 3; do
+                code=$(curl -fsSL -m 600 \
+                            -o "$CACHE/FD13-FloppyEdition.zip.part" \
+                            -w '%{http_code}' "$url" 2>/dev/null) || true
+                if [ "${code:-000}" = "200" ]; then got=1; break; fi
+                rm -f "$CACHE/FD13-FloppyEdition.zip.part"
+                # 404 means "not here, try the other place"; 503 is what
+                # ibiblio says under load and is worth asking again.
+                case "${code:-000}" in 404|403|410) break ;; esac
+                [ "$attempt" -lt 3 ] && sleep $((attempt * 3))
+            done
+            [ "$got" = 1 ] && break
+        done
+        [ "$got" = 1 ] || die "could not fetch the Floppy Edition from
+       $FREEDOS_URL
+       $FREEDOS_URL_ALT
+       Both were tried three times. ibiblio is the only upstream and
+       answers 503 under load; publish a copy and set FREEDOS_URL."
+
+        have=$(shasum -a 256 "$CACHE/FD13-FloppyEdition.zip.part" 2>/dev/null |
+               cut -d' ' -f1)
+        [ -n "$have" ] ||
+            have=$(sha256sum "$CACHE/FD13-FloppyEdition.zip.part" | cut -d' ' -f1)
+        if [ "$have" != "$FREEDOS_SHA256" ]; then
+            if [ -n "${FREEDOS_ALLOW_UNPINNED:-}" ]; then
+                echo "  WARNING: the archive does not match its pin," \
+                     "allowed by FREEDOS_ALLOW_UNPINNED" >&2
+                echo "    want $FREEDOS_SHA256" >&2
+                echo "    got  $have" >&2
+            else
+                rm -f "$CACHE/FD13-FloppyEdition.zip.part"
+                die "the Floppy Edition does not match its expected hash:
+       want $FREEDOS_SHA256
+       got  $have
+       This is the demo's boot disk. Check what you fetched, then either
+       update FREEDOS_SHA256 in this script or set
+       FREEDOS_ALLOW_UNPINNED=1 for a one-off."
+            fi
+        fi
         mv "$CACHE/FD13-FloppyEdition.zip.part" "$CACHE/FD13-FloppyEdition.zip"
     fi
     command -v unzip >/dev/null 2>&1 || die "unzip not found"

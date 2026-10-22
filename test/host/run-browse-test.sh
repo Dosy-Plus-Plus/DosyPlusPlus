@@ -121,13 +121,26 @@ fi
 # observable event and the rig can wait for the real thing.
 echo "fetching the list and walking it..."
 (
-    # ENTER into "up", once the root listing is on screen
-    await_line "$RUN/dn.log" "CSND list / 0"          || true; sleep 0.3; printf '\r'
-    # ENTER into "warez" (directories sort first)
-    await_line "$RUN/dn.log" "CSND list /up/ 0"       || true; sleep 0.3; printf '\r'
-    # DOWN past "apps" to MAZERUN2.ZIP, then SPACE to queue it
-    await_line "$RUN/dn.log" "CSND list /up/warez/ 0" || true; sleep 0.3; printf '\033[B'
-    sleep 0.5; printf ' '
+    # Each ENTER descends, and descending asks the peer for that
+    # directory -- so the key's own effect is on the wire and can be
+    # confirmed rather than assumed. The first version of this waited for
+    # the *previous* listing and pressed 0.3s later, which is a statement
+    # about when the UI could act, not about whether it did; on a CI
+    # runner it did not, and the rig blamed the file it ended up queueing.
+    await_line "$RUN/dn.log" "CSND list / 0" || true
+    send_until "$RUN/dn.log" "\r" "CGET list /up/" ||
+        echo "  (never descended into up)" >&2
+    send_until "$RUN/dn.log" "\r" "CGET list /up/warez/" ||
+        echo "  (never descended into warez)" >&2
+
+    # DOWN only moves the highlight, so there is nothing to confirm and
+    # nothing that could be safely resent: give the listing time to draw,
+    # move, then queue -- and confirm the queue by the transfer it starts.
+    await_line "$RUN/dn.log" "CSND list /up/warez/ 0" || true
+    sleep 2;   printf '\033[B'
+    sleep 0.5
+    send_until "$RUN/dn.log" " " "CGET (file|tthl)" ||
+        echo "  (SPACE queued nothing)" >&2
     sleep 20
 ) | ( cd "$RUN/down" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn.txt" --null-display --door 8 --peer-trace \
@@ -227,9 +240,16 @@ done
     # client falls back to fetching files.xml.bz2 whole. That transfer is
     # the event to wait for -- waiting for a CSND list would time out by
     # design and put the keys in late.
-    await_line "$RUN/dn2.log" "CSND file files.xml.bz2" || true; sleep 0.5; printf '\r'
-    sleep 0.5; printf '\r'
-    sleep 12
+    # Anchored on the transfer, then paced: with the whole list in hand
+    # the tree is local, so descending causes no wire traffic and there is
+    # nothing to confirm. The transfer line only says the response header
+    # arrived -- the bz2 still has to be decompressed and parsed -- so the
+    # two seconds after it are not padding, and cutting them to half a
+    # second is what made this fail on a slower machine.
+    await_line "$RUN/dn2.log" "CSND file files.xml.bz2" || true
+    sleep 2; printf '\r'
+    sleep 2; printf '\r'
+    sleep 10
 ) | ( cd "$RUN/down2" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn2.txt" --null-display --door 8 --peer-trace \
     --browse Sharer --run-secs 26 127.0.0.1 ) > "$RUN/dn2.log" 2>&1
