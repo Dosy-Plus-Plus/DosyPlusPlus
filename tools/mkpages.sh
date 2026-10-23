@@ -56,6 +56,14 @@ rm -rf "$OUT"
 mkdir -p "$OUT/vendor" "$OUT/images" "$OUT/relay" "$OUT/attic"
 
 cp "$ROOT/web/index.html" "$OUT/index.html"
+
+# The icon, which the page links and every browser asks for anyway: a
+# bundle without it answers /favicon.ico with a 404 for every visitor.
+# Drawn by tools/mkfavicon.py, so it is generated rather than committed --
+# the same arrangement as art/DOSYPP.MOD.
+[ -f "$ROOT/web/favicon.ico" ] || "$ROOT/tools/mkfavicon.py" >/dev/null
+need "$ROOT/web/favicon.ico" "tools/mkfavicon.py ran and produced nothing"
+cp "$ROOT/web/favicon.ico" "$ROOT/web/favicon.png" "$OUT/"
 cp "$ROOT/web/relayurl.mjs" "$ROOT/web/midi.mjs" "$ROOT/web/synth.mjs" \
    "$ROOT/web/midiworklet.mjs" "$ROOT/web/webmidi.mjs" \
    "$ROOT/web/wisp.mjs" "$ROOT/web/adchub.mjs" "$ROOT/web/disk.mjs" \
