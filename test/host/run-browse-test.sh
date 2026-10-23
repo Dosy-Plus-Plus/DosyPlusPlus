@@ -108,7 +108,8 @@ fi
 # descents -- which is the navigation worth testing anyway.
 #
 #   ENTER  into "up"
-#   ENTER  into "warez" (directories sort first)
+#   DOWN   past "mods" to "warez" (directories first, then by name)
+#   ENTER  into "warez"
 #   DOWN   past "apps" to MAZERUN2.ZIP
 #   SPACE  queue it
 #
@@ -138,7 +139,14 @@ echo "fetching the list and walking it..."
     sleep 2;   printf '\r'
     await_line "$RUN/dn.log" "CGET list /up/" 20 ||
         echo "  (never descended into up)" >&2
-    sleep 1;   printf '\r'
+    # /up holds mods and warez, and the listing is in name order, so the
+    # highlight starts on mods: one DOWN to reach warez. This used to
+    # press ENTER on whichever directory happened to be first, which was
+    # warez here and mods on a Linux runner -- the client listed entries
+    # in the order the sharer's filesystem returned them. The client
+    # sorts now, so this is the same everywhere.
+    sleep 1;   printf '\033[B'
+    sleep 0.5; printf '\r'
     await_line "$RUN/dn.log" "CGET list /up/warez/" 20 ||
         echo "  (never descended into warez)" >&2
 
@@ -258,8 +266,9 @@ done
     # two seconds after it are not padding, and cutting them to half a
     # second is what made this fail on a slower machine.
     await_line "$RUN/dn2.log" "CSND file files.xml.bz2" || true
-    sleep 2; printf '\r'
-    sleep 2; printf '\r'
+    sleep 2; printf '\r'          # into "up"
+    sleep 2; printf '\033[B'      # past "mods" to "warez"
+    sleep 1; printf '\r'          # into "warez"
     sleep 10
 ) | ( cd "$RUN/down2" && exec "$CLIENT" -c "$RUN/dn.ini" \
     --screenshot "$RUN/dn2.txt" --null-display --door 8 --peer-trace \

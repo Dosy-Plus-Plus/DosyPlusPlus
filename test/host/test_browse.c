@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>   /* strcasecmp, for the order check */
 #include <unistd.h>
 
 #include "../../src/share/bz.h"
@@ -282,17 +283,21 @@ static void test_parse(void)
     CHECK(!b.truncated, "a good list was marked truncated: %s",
           browse_error(&b));
 
-    /* The root: two directories then one file, directories first. */
+    /* The root: two directories then one file, directories first and by
+       name within each group. The list has warez before empty, so this
+       also says the order comes from the names and not from the order the
+       entries arrived in -- which is the order the sharer's filesystem
+       returned, and differs between machines. */
     n = browse_listing(&b, idx, 32);
     CHECK(n == 3, "root holds %ld entries, expected 3", n);
     if (n == 3) {
-        CHECK_STR(browse_name(&b, idx[0]), "warez");
-        CHECK_STR(browse_name(&b, idx[1]), "empty");
+        CHECK_STR(browse_name(&b, idx[0]), "empty");
+        CHECK_STR(browse_name(&b, idx[1]), "warez");
         CHECK_STR(browse_name(&b, idx[2]), "README.TXT");
     }
 
     /* An entity in a name must survive. */
-    browse_enter(&b, idx[0]);
+    browse_enter(&b, idx[1]);
     n = browse_listing(&b, idx, 32);
     CHECK(n == 2, "warez holds %ld entries, expected 2", n);
     if (n == 2) {
@@ -305,6 +310,22 @@ static void test_parse(void)
 
         browse_path(&b, path, sizeof path);
         CHECK_STR(path, "/warez");
+    }
+
+    /* And the names, case-insensitively: a DOS share is upper case and
+       somebody else's is not, and a listing that sorts ARJ.ZIP away from
+       arachne.zip reads as broken. */
+    {
+        long i;
+        int ordered = 1;
+
+        for (i = 1; i < n; i++) {
+            const char *prev = browse_name(&b, idx[i - 1]);
+            const char *cur = browse_name(&b, idx[i]);
+            if (prev && cur && strcasecmp(prev, cur) > 0)
+                ordered = 0;
+        }
+        CHECK(ordered, "the listing is not in name order");
     }
 
     /* Down, then back up. */
@@ -348,9 +369,10 @@ static void test_parse(void)
         CHECK_STR(path, "/");
     }
 
-    /* An empty directory still exists and is enterable. */
+    /* An empty directory still exists and is enterable. In name order
+       "empty" comes before "warez", so it is the first row. */
     n = browse_listing(&b, idx, 32);
-    browse_enter(&b, idx[1]);
+    browse_enter(&b, idx[0]);
     {
         char path[128];
         long m = browse_listing(&b, idx, 32);

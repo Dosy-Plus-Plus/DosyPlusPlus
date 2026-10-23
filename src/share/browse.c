@@ -480,6 +480,33 @@ void browse_up(browse_list *b)
     b->cwd = b->ents[b->cwd].parent;
 }
 
+/* Is a's name before b's? Case-insensitively, because a DOS share is
+   upper case and somebody else's is not, and a listing that puts ARJ.ZIP
+   and arachne.zip in different halves of the screen reads as broken.
+   Ties break on the index so the order is total and stable. */
+static int name_before(const browse_list *b, long a, long c)
+{
+    const char *x = browse_name(b, a);
+    const char *y = browse_name(b, c);
+    unsigned char cx, cy;
+
+    if (!x || !y)
+        return x != NULL;
+
+    while (*x && *y) {
+        cx = (unsigned char)*x;
+        cy = (unsigned char)*y;
+        if (cx >= 'a' && cx <= 'z') cx = (unsigned char)(cx - 'a' + 'A');
+        if (cy >= 'a' && cy <= 'z') cy = (unsigned char)(cy - 'a' + 'A');
+        if (cx != cy)
+            return cx < cy;
+        x++; y++;
+    }
+    if (*x != *y)
+        return *y != '\0';
+    return a < c;
+}
+
 long browse_listing(browse_list *b, long *out, long max)
 {
     long n = 0;
@@ -489,14 +516,53 @@ long browse_listing(browse_list *b, long *out, long max)
     if (max <= 0)
         return 0;
 
-    /* Directories first, as every file manager since Norton Commander.
-       Two passes rather than a sort: the table is already in list order,
-       which is the order the sharer chose. */
-    for (pass = 0; pass < 2 && n < max; pass++)
-        for (i = 0; i < b->count && n < max; i++)
-            if (b->ents[i].parent == b->cwd &&
-                (int)b->ents[i].is_dir == (pass == 0))
-                out[n++] = i;
+    /* Directories first, as every file manager since Norton Commander,
+       and by name within each group.
+     *
+       This used to take the table's own order and call it "the order the
+       sharer chose". It is not: it is the order the sharer's filesystem
+       handed back from readdir or FINDNEXT, which is arbitrary and
+       differs between machines. The same share browsed from two clients
+       listed its directories in two different orders, and a rig that
+       pressed ENTER on the first one descended somewhere different
+       depending on the host it ran on.
+     *
+       Selected rather than sorted: pick the smallest remaining name for
+       each row. That is max passes over the table instead of a sort of
+       the whole directory, needs no scratch buffer on a machine with
+       16MB, and -- since out[] is a page and the caller recomputes only
+       when the directory changes -- costs a few milliseconds on a 486
+       with a couple of thousand entries in one directory. */
+    for (pass = 0; pass < 2 && n < max; pass++) {
+        for (;;) {
+            long best = -1;
+            long k;
+
+            if (n >= max)
+                break;
+
+            for (i = 0; i < b->count; i++) {
+                if (b->ents[i].parent != b->cwd)
+                    continue;
+                if ((int)b->ents[i].is_dir != (pass == 0))
+                    continue;
+
+                for (k = 0; k < n; k++)       /* already placed */
+                    if (out[k] == i)
+                        break;
+                if (k < n)
+                    continue;
+
+                if (best < 0 ||
+                    name_before(b, i, best))
+                    best = i;
+            }
+
+            if (best < 0)
+                break;
+            out[n++] = best;
+        }
+    }
 
     return n;
 }
