@@ -367,8 +367,18 @@ CD \                           and back out afterwards</pre>
     a reload. It is your browser's storage: nothing leaves the tab.
   </p>
   <p>
-    <b>What this page is not.</b> It is not a hub, not a relay and not a
-    tracker. It serves static files; everything else runs on your machine.
+    <b>What this page is not.</b> It is not a hub and not a relay: it
+    serves static files, and everything else runs on your machine.
+  </p>
+  <p>
+    <b>What it does count.</b> Page views, through
+    <a href="https://developers.cloudflare.com/web-analytics/">Cloudflare
+    Web Analytics</a> &mdash; which is cookieless, stores no identifiers on
+    your machine and does not follow you anywhere else. It reports which
+    page was opened, from roughly where, and what linked to it. Nothing
+    about what you do inside the emulator leaves your browser: no
+    keystrokes, no transfers, no file names. If you would rather not be
+    counted, a blocker like ublock origin will stop it and the demo works exactly the same.
   </p>
 </details>
 
@@ -400,6 +410,14 @@ CD \                           and back out afterwards</pre>
 </div>
 
 <footer id="build"></footer>
+
+<!-- Cloudflare Web Analytics. Last in the body and deferred by being a
+     module, so a slow or blocked beacon cannot hold up the emulator; the
+     token is a public site identifier, not a secret. What it records, and
+     what it does not, is in the panel above. -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "af27925146144c04a3ddd305c6117af2"}'></script>
+<!-- End Cloudflare Web Analytics -->
 
 <script type="module">
 import { V86 } from "./vendor/libv86.mjs";
