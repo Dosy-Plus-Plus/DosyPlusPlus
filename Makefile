@@ -154,6 +154,7 @@ TEST_BINS := $(patsubst test/host/%.c,$(BUILD)/host/%,$(TEST_SRC))
         dos-share-check dos-xfer-check dos-browse-check \
         dos-hublist-check dos-music-check dos-rows-check \
         screenshot screens art modules atmos demo demo-dos demo-web demo-stop bzip2 \
+        favicon \
         tthof warez pages test-pages test-v86-dl test-attic \
         sf2 dos-midi-check dos-midi-any synth test-v86-midi test-selfbrowse \
         test-v86-doom test-v86-hublist test-v86-inpage test-v86-play demo-pages \
@@ -647,7 +648,13 @@ warez: tthof atmos
 
 # What gets published to GitHub Pages: the page, the engine, the images,
 # and the two scripts that give the browser a network. See docs/PAGES.md.
-pages: images warez web/vendor/synth/spessasynth_core.js
+# The site icon, drawn from the client's own letterforms.
+favicon: web/favicon.ico
+
+web/favicon.ico web/favicon.png: tools/mkfavicon.py
+	./tools/mkfavicon.py
+
+pages: images warez web/vendor/synth/spessasynth_core.js web/favicon.ico
 	./tools/mkpages.sh
 
 # The vendored synthesiser, as a file rather than a phony target: `make

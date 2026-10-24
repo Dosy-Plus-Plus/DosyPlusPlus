@@ -54,3 +54,9 @@ fluidsynth.wav
 # behind decisions, kept out of the repository on purpose.
 /IMPLEMENTATION_PLAN.md
 /TODO.md
+
+# Drawn by tools/mkfavicon.py (make favicon), for the same reason the
+# module is: generated from a source in the repository rather than
+# committed as bytes nobody can edit.
+/web/favicon.ico
+/web/favicon.png
